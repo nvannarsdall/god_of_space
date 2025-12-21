@@ -99,7 +99,7 @@ function TutorialOverlay({
         <rect
           width="100%"
           height="100%"
-          fill="rgba(3,6,12,0.82)"
+          fill="rgba(3,6,12,0.60)"
           mask="url(#holeMask)"
         />
 

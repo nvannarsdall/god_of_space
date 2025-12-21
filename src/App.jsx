@@ -15,8 +15,313 @@ import {
 } from "./game/state";
 import TutorialOverlay from "./tutorial/TutorialOverlay";
 import { buildTutorialSteps } from "./tutorial/tutorialData";
+function IntroCutscene({ onDone }) {
+  const canvasRef = React.useRef(null);
+  const rafRef = React.useRef(null);
+  const startTsRef = React.useRef(null);
+  const starsRef = React.useRef([]);
+  const [phase, setPhase] = React.useState("idle"); // idle -> playing -> done
+  const [muted, setMuted] = React.useState(false);
+
+  const audioRef = React.useRef({
+    ctx: null,
+    master: null,
+  });
+
+  function ensureAudio() {
+    if (audioRef.current.ctx) return audioRef.current;
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const master = ctx.createGain();
+    master.gain.value = 0.8;
+    master.connect(ctx.destination);
+    audioRef.current.ctx = ctx;
+    audioRef.current.master = master;
+    return audioRef.current;
+  }
+
+  function playWhoosh() {
+    if (muted) return;
+    const { ctx, master } = ensureAudio();
+    const now = ctx.currentTime;
+
+    // noise buffer
+    const bufferSize = Math.floor(ctx.sampleRate * 0.35);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++)
+      data[i] = (Math.random() * 2 - 1) * 0.8;
+
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(500, now);
+    filter.frequency.exponentialRampToValueAtTime(2200, now + 0.25);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.9, now + 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(master);
+
+    noise.start(now);
+    noise.stop(now + 0.36);
+  }
+
+  function playChime() {
+    if (muted) return;
+    const { ctx, master } = ensureAudio();
+    const now = ctx.currentTime;
+
+    const freqs = [440, 660, 880];
+    freqs.forEach((f, idx) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(f, now);
+
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, now + idx * 0.02);
+      g.gain.exponentialRampToValueAtTime(0.35, now + 0.03 + idx * 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.45 + idx * 0.02);
+
+      osc.connect(g);
+      g.connect(master);
+
+      osc.start(now + idx * 0.02);
+      osc.stop(now + 0.6);
+    });
+  }
+
+  function initStars(w, h) {
+    const n = 220;
+    const stars = [];
+    for (let i = 0; i < n; i++) {
+      stars.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        z: Math.random(), // depth
+        s: 0.4 + Math.random() * 1.6, // size
+        v: 0.15 + Math.random() * 0.85, // speed factor
+      });
+    }
+    starsRef.current = stars;
+  }
+
+  React.useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+
+    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+    const resize = () => {
+      const rect = c.getBoundingClientRect();
+      c.width = Math.floor(rect.width * dpr);
+      c.height = Math.floor(rect.height * dpr);
+      const ctx = c.getContext("2d");
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      initStars(c.width, c.height);
+    };
+
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+
+  React.useEffect(() => {
+    if (phase !== "playing") return;
+
+    const c = canvasRef.current;
+    const ctx = c.getContext("2d");
+
+    const tick = (ts) => {
+      if (!startTsRef.current) startTsRef.current = ts;
+      const t = (ts - startTsRef.current) / 1000;
+
+      const w = c.width,
+        h = c.height;
+
+      // background
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, w, h);
+
+      // stars
+      const stars = starsRef.current;
+      for (let i = 0; i < stars.length; i++) {
+        const st = stars[i];
+        st.y += (0.35 + st.v) * (2.0 - st.z) * (w * 0.00045);
+
+        if (st.y > h + 10) {
+          st.y = -10;
+          st.x = Math.random() * w;
+          st.z = Math.random();
+          st.s = 0.4 + Math.random() * 1.6;
+          st.v = 0.15 + Math.random() * 0.85;
+        }
+
+        const alpha = 0.25 + (1 - st.z) * 0.75;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = "white";
+        ctx.fillRect(st.x, st.y, st.s * (1.2 - st.z), st.s * (1.2 - st.z));
+      }
+      ctx.globalAlpha = 1;
+
+      // title fades
+      const fadeIn = Math.min(1, Math.max(0, (t - 0.6) / 1.2));
+      const hold = t < 4.2 ? 1 : Math.max(0, 1 - (t - 4.2) / 0.8);
+
+      const a = fadeIn * hold;
+
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      ctx.globalAlpha = a;
+      ctx.fillStyle = "white";
+      ctx.font = `${Math.floor(
+        w * 0.06
+      )}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      ctx.fillText("GOD OF SPACE", w / 2, h * 0.45);
+
+      ctx.globalAlpha = a * 0.9;
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.font = `${Math.floor(
+        w * 0.022
+      )}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      ctx.fillText("From starlight… to reverence.", w / 2, h * 0.53);
+
+      ctx.restore();
+
+      // auto-end
+      if (t >= 5.2) {
+        setPhase("done");
+        onDone?.();
+        return;
+      }
+
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    };
+  }, [phase, onDone]);
+
+  React.useEffect(() => {
+    if (phase === "done") {
+      // stop audio context politely (optional)
+      return;
+    }
+  }, [phase]);
+
+  const begin = async () => {
+    setPhase("playing");
+    // unlock audio on gesture
+    const { ctx } = ensureAudio();
+    if (ctx.state === "suspended") {
+      try {
+        await ctx.resume();
+      } catch {}
+    }
+    playWhoosh();
+    setTimeout(() => playChime(), 650);
+  };
+
+  const skip = () => {
+    setPhase("done");
+    onDone?.();
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        background: "black",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <canvas
+        ref={canvasRef}
+        style={{ width: "100%", height: "100%", display: "block" }}
+      />
+
+      <div
+        style={{
+          position: "absolute",
+          left: 16,
+          top: 16,
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+        }}
+      >
+        <button onClick={() => setMuted((m) => !m)} style={btnStyle}>
+          {muted ? "Unmute" : "Mute"}
+        </button>
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          right: 16,
+          top: 16,
+          display: "flex",
+          gap: 8,
+        }}
+      >
+        <button onClick={skip} style={btnStyle}>
+          Skip
+        </button>
+      </div>
+
+      {phase === "idle" && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: 42,
+            left: 0,
+            right: 0,
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <button
+            onClick={begin}
+            style={{ ...btnStyle, padding: "12px 18px", fontSize: 16 }}
+          >
+            Begin
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const btnStyle = {
+  background: "rgba(255,255,255,0.12)",
+  border: "1px solid rgba(255,255,255,0.22)",
+  color: "white",
+  borderRadius: 10,
+  padding: "8px 12px",
+  cursor: "pointer",
+  fontFamily:
+    "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial",
+};
 
 export default function App() {
+  const [showIntro, setShowIntro] = useState(() => {
+    return localStorage.getItem("gos_intro_seen") !== "1";
+  });
+
   const [state, setState] = useState(() => {
     const loaded = loadState();
     const merged = loaded ? deepMerge(baseState(), loaded) : baseState();
@@ -73,7 +378,6 @@ export default function App() {
         skyTab: skyTabRef,
       },
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, tutorialOn, seekerCost]);
 
   const tutorialStepData = tutorialOn
@@ -98,16 +402,9 @@ export default function App() {
 
   const inMenu = state.ui?.screen === "menu";
 
-  const leftHudPE = tutorialOn
-    ? isSeekerStep || isConvertStep
-      ? "auto"
-      : "none"
-    : "auto";
-  const rightPanelPE = tutorialOn
-    ? isVillageListStep || isSkyTabStep || isSkyUpgradeStep
-      ? "auto"
-      : "none"
-    : "auto";
+  // The tutorial should guide, not block the player from using the HUD.
+  const leftHudPE = "auto";
+  const rightPanelPE = "auto";
 
   const veilPct = Math.round(computed.veil * 100);
 
@@ -500,7 +797,7 @@ export default function App() {
       <div
         className="topBar"
         style={{
-          pointerEvents: inMenu || tutorialOn ? "none" : "auto",
+          pointerEvents: inMenu ? "none" : "auto",
           opacity: inMenu ? 0.6 : 1,
         }}
       >

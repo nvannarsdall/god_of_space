@@ -769,16 +769,9 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
           ctx.stroke();
           ctx.restore();
         } else if (p.kind === "float") {
-          const age = (tMs - p.t0) / 1000;
-          const x = p.x * W;
-          const y = p.y * H;
-          ctx.save();
-          ctx.globalAlpha = Math.max(0, 0.95 - age * 1.1);
-          ctx.fillStyle = "rgba(255,255,255,0.92)";
-          ctx.font = `${Math.floor(14 * dpr)}px ui-sans-serif, system-ui`;
-          ctx.textAlign = "center";
-          ctx.fillText(p.text, x, y - age * 70 * dpr);
-          ctx.restore();
+          // IMPORTANT: Do NOT render floating text into the pixelated scene buffer.
+          // We draw it later directly onto the display canvas so it stays crisp.
+          continue;
         } else if (p.kind === "mote") {
           const age = tMs - p.t0;
           if (age < 0) continue;
@@ -811,6 +804,33 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
           ctx.restore();
         }
       }
+    };
+
+    // Draw floating click text *after* pixelation so it stays sharp.
+    const drawFloatOverlay = (tMs) => {
+      const { w, h, dpr } = sizeRef.current;
+      const W = w * dpr;
+      const H = h * dpr;
+
+      // displayCtx is in device pixels already (canvas width/height are scaled by dpr).
+      displayCtx.save();
+      displayCtx.setTransform(1, 0, 0, 1, 0, 0);
+      displayCtx.textAlign = "center";
+      displayCtx.textBaseline = "middle";
+      displayCtx.fillStyle = "rgba(255,255,255,0.92)";
+      displayCtx.font = `${Math.floor(14 * dpr)}px ui-sans-serif, system-ui`;
+
+      for (const p of fxRef.current) {
+        if (p.kind !== "float") continue;
+        const age = (tMs - p.t0) / 1000;
+        if (age < 0 || age > 0.9) continue;
+        const x = p.x * W;
+        const y = p.y * H;
+        displayCtx.globalAlpha = Math.max(0, 0.95 - age * 1.1);
+        displayCtx.fillText(p.text, x, y - age * 70 * dpr);
+      }
+
+      displayCtx.restore();
     };
 
     const loop = () => {
@@ -878,6 +898,15 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       displayCtx.clearRect(0, 0, W, H);
       displayCtx.drawImage(pixel, 0, 0, PW, PH, 0, 0, W, H);
 
+      // Crisp click text overlay.
+      drawFloatOverlay(now);
+
+      // Overlay crisp floating text on top of the pixelated scene.
+      drawFloatOverlay(now);
+
+      // Draw crisp overlays (like click text) *after* the pixel-art blit.
+      drawFloatOverlay(now);
+
       rafRef.current = requestAnimationFrame(loop);
     };
 
@@ -923,7 +952,8 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         "village",
         state.unlocked.awakened ? 8 : 6
       );
-      addFloat(x, y, state.unlocked.awakened ? "+Reverence" : "+Omen");
+      // Village clicks are rituals: always Omens (whispers) regardless of awaken state.
+      addFloat(x, y, "+Omen");
       onClickVillage();
     }
   };
