@@ -111,6 +111,19 @@ export default function App() {
     setTimeout(() => setToast(null), 1400);
   };
 
+  // bind pixel UI textures from /public without breaking the CSS build
+  useEffect(() => {
+    const root = document.documentElement;
+    const base = String(process.env.PUBLIC_URL || "").replace(/\/$/, "");
+    const setVar = (name, relPath) => {
+      root.style.setProperty(name, `url("${base}${relPath}")`);
+    };
+    setVar("--px-panel-tile", "/assets/pixel/panel_tile.png");
+    setVar("--px-btn-primary", "/assets/pixel/btn_primary.png");
+    setVar("--px-btn-secondary", "/assets/pixel/btn_secondary.png");
+    setVar("--px-btn-danger", "/assets/pixel/btn_danger.png");
+  }, []);
+
   // autosave
   useEffect(() => {
     if (!state.settings.autosave) return;
