@@ -255,6 +255,7 @@ export default function App() {
     showToast("A Seeker enters the dusk.");
   };
 
+ codex/refactor-app.js-into-multiple-files-ivkzpn
   const spendOmens = () => {
     setState((s0) => {
       const s = migrateState(s0);
@@ -270,6 +271,8 @@ export default function App() {
     showToast("Omens fade into Reverence.");
   };
 
+
+ main
   const convert = () => {
     setState((s0) => {
       const s = migrateState(s0);
@@ -444,7 +447,10 @@ export default function App() {
     (state.power || 0) > 0 ||
     (state.village?.huts || 0) > 0 ||
     (state.sky?.starsong || 0) > 0;
+codex/refactor-app.js-into-multiple-files-ivkzpn
   const omenSpend = Math.min(10, state.whispers);
+
+main
 
   return (
     <div className="appRoot">
@@ -533,10 +539,13 @@ export default function App() {
               <div className="statValueSmall">{fmt(state.whispers)}</div>
             </div>
 
+ codex/refactor-app.js-into-multiple-files-ivkzpn
             <div className="statSub">
               Earned by clicking before you awaken.
               {awakened ? " Spend leftovers for a small Reverence burst." : ""}
             </div>
+
+            <div className="statSub">Earned by clicking before you awaken.</div> main
 
             {!awakened && (
               <>
@@ -561,6 +570,7 @@ export default function App() {
                 </div>
               </>
             )}
+ codex/refactor-app.js-into-multiple-files-ivkzpn
             {awakened && state.whispers > 0 && (
               <div style={{ marginTop: 8 }}>
                 <Button variant="secondary" onClick={spendOmens}>
@@ -568,6 +578,7 @@ export default function App() {
                 </Button>
               </div>
             )}
+ main
           </div>
 
           <div className="statBox">
