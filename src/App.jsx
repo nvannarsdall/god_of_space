@@ -35,6 +35,7 @@ export default function App() {
 
   // tutorial/menu spotlight refs
   const worldRef = useRef(null);
+  const statusRef = useRef(null);
   const seekerBtnRef = useRef(null);
   const upgradesRef = useRef(null);
   const convertBtnRef = useRef(null);
@@ -62,6 +63,7 @@ export default function App() {
       },
       refs: {
         world: worldRef,
+        status: statusRef,
         seekerButton: seekerBtnRef,
         upgrades: upgradesRef,
         convertButton: convertBtnRef,
@@ -126,6 +128,7 @@ export default function App() {
 
         const nextFollowers = Math.min(c.cap, s.followers + c.followerRate);
         const nextDevotion = s.devotion + c.devotionRate;
+        const nextOmens = s.whispers + (c.omenRate || 0);
         const nextStardust = Math.max(0, s.stardust - 0.015);
 
         return migrateState({
@@ -133,6 +136,7 @@ export default function App() {
           t: s.t + 1,
           followers: nextFollowers,
           devotion: nextDevotion,
+          whispers: nextOmens,
           stardust: nextStardust,
         });
       });
@@ -197,14 +201,10 @@ export default function App() {
 
       const c = compute(s);
 
-      // pre-awakening clicks ALWAYS produce Omens.
-      if (!s.unlocked.awakened) {
-        return { ...s, whispers: s.whispers + 1 };
-      }
-
-      // post-awakening clicks produce devotion burst
-      const burst = c.clickDevotionBonus * c.clickFestivalMul * c.globalMul;
-      return { ...s, devotion: s.devotion + burst };
+      // Village clicks are now always "ritual" clicks: they generate Omens.
+      // Reverence is earned primarily from followers (passive), not from clicks.
+      const gain = Math.max(0.25, c.omenClickGain || 1);
+      return { ...s, whispers: s.whispers + gain };
     });
   };
 
@@ -251,19 +251,22 @@ export default function App() {
     showToast("A Seeker enters the dusk.");
   };
 
-  const spendOmens = () => {
+  const PORTENT_COST = 30;
+  const invokePortent = () => {
     setState((s0) => {
       const s = migrateState(s0);
       if (!s.unlocked.awakened) return s;
-      if (s.whispers < 1) return s;
-      const spend = Math.min(10, s.whispers);
+      if (s.whispers < PORTENT_COST) return s;
+      const shrines = s.village?.shrines || 0;
+      const duration = 45 + shrines * 5;
+      const until = (s.t || 0) + duration;
       return migrateState({
         ...s,
-        whispers: s.whispers - spend,
-        devotion: s.devotion + spend,
+        whispers: s.whispers - PORTENT_COST,
+        buffs: { ...(s.buffs || {}), portentUntil: until },
       });
     });
-    showToast("Omens fade into Reverence.");
+    showToast("A Portent ignites the dusk.");
   };
 
   const convert = () => {
@@ -439,9 +442,10 @@ export default function App() {
     (state.devotion || 0) > 0 ||
     (state.power || 0) > 0 ||
     (state.village?.huts || 0) > 0 ||
+    (state.village?.shrines || 0) > 0 ||
     (state.sky?.starsong || 0) > 0;
 
-  const omenSpend = Math.min(10, state.whispers);
+  const portentRemaining = Math.max(0, (state.buffs?.portentUntil || 0) - state.t);
 
   return (
     <div className="appRoot">
@@ -507,10 +511,11 @@ export default function App() {
           opacity: inMenu ? 0.6 : 1,
         }}
       >
-        <Card
-          title="Status"
-          right={<Pill>Day {Math.floor(state.t / 60) + 1}</Pill>}
-        >
+        <div ref={statusRef}>
+          <Card
+            title="Status"
+            right={<Pill>Day {Math.floor(state.t / 60) + 1}</Pill>}
+          >
           <div className="grid2">
             <div className="statBox">
               <div className="statLabel">Followers</div>
@@ -530,8 +535,8 @@ export default function App() {
               <div className="statValueSmall">{fmt(state.whispers)}</div>
             </div>
             <div className="statSub">
-              Earned by clicking before you awaken.
-              {awakened ? " Spend leftovers for a small Reverence burst." : ""}
+              Earned from ritual clicks on the village (always) and Shrines
+              (passive). Used to call a Seeker and ignite Portents.
             </div>
 
             {!awakened && (
@@ -562,9 +567,25 @@ export default function App() {
 
             {awakened && state.whispers > 0 && (
               <div style={{ marginTop: 8 }}>
-                <Button variant="secondary" onClick={spendOmens}>
-                  Offer {omenSpend} Omens → +{omenSpend} Reverence
-                </Button>
+                <div className="rowBetween" style={{ gap: 10, flexWrap: "wrap" }}>
+                  <Button
+                    variant="secondary"
+                    onClick={invokePortent}
+                    disabled={state.whispers < PORTENT_COST || computed.portentActive}
+                    title={
+                      computed.portentActive
+                        ? "Portent is already active"
+                        : state.whispers < PORTENT_COST
+                        ? `Need ${PORTENT_COST - Math.floor(state.whispers)} more Omens`
+                        : "Boost growth + reverence for a short time"
+                    }
+                  >
+                    Ignite Portent ({PORTENT_COST})
+                  </Button>
+                  {computed.portentActive && (
+                    <Pill>Portent: {Math.ceil(portentRemaining)}s</Pill>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -612,7 +633,8 @@ export default function App() {
               </Button>
             </div>
           </div>
-        </Card>
+          </Card>
+        </div>
 
         {/* Music */}
         <div style={{ marginTop: 12 }}>
@@ -1006,6 +1028,7 @@ export default function App() {
       {tutorialOn && tutorialStepData && (
         <TutorialOverlay
           rect={tutorialStepData.target?.()}
+          rects={tutorialStepData.targets?.map((fn) => fn()).filter(Boolean)}
           title={tutorialStepData.title}
           body={tutorialStepData.body}
           step={tutorialIndex + 1}

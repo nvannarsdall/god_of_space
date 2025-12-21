@@ -52,6 +52,10 @@ function makeStars(seed) {
 function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
+  const sceneRef = useRef(null);
+  const pixelRef = useRef(null);
+  const noiseRef = useRef(null);
+  const pixelSizeRef = useRef(3);
   const rafRef = useRef(null);
   const sizeRef = useRef({ w: 0, h: 0, dpr: 1 });
   const pointerRef = useRef({ x: 0.5, y: 0.5 });
@@ -119,6 +123,36 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       c.height = Math.floor(h * dpr);
       c.style.width = `${w}px`;
       c.style.height = `${h}px`;
+
+      // Allocate / sync offscreen buffers (scene + pixel buffer + noise).
+      if (!sceneRef.current) sceneRef.current = document.createElement("canvas");
+      if (!pixelRef.current) pixelRef.current = document.createElement("canvas");
+
+      sceneRef.current.width = c.width;
+      sceneRef.current.height = c.height;
+
+      const px = pixelSizeRef.current || 3;
+      pixelRef.current.width = Math.max(1, Math.floor(c.width / px));
+      pixelRef.current.height = Math.max(1, Math.floor(c.height / px));
+
+      if (!noiseRef.current) {
+        const n = document.createElement("canvas");
+        n.width = 64;
+        n.height = 64;
+        const nctx = n.getContext("2d");
+        if (nctx) {
+          const img = nctx.createImageData(n.width, n.height);
+          for (let i = 0; i < img.data.length; i += 4) {
+            const v = (Math.random() * 255) | 0;
+            img.data[i] = v;
+            img.data[i + 1] = v;
+            img.data[i + 2] = v;
+            img.data[i + 3] = 255;
+          }
+          nctx.putImageData(img, 0, 0);
+        }
+        noiseRef.current = n;
+      }
     };
     handleResize();
     window.addEventListener("resize", handleResize);
@@ -128,8 +162,24 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
   useEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
-    const ctx = c.getContext("2d");
-    if (!ctx) return;
+    const displayCtx = c.getContext("2d");
+    if (!displayCtx) return;
+
+    // We draw the scene at full res into an offscreen canvas, then downsample + upscale
+    // with smoothing disabled to get a crisp pixel-art look.
+    if (!sceneRef.current) sceneRef.current = document.createElement("canvas");
+    if (!pixelRef.current) pixelRef.current = document.createElement("canvas");
+
+    const scene = sceneRef.current;
+    const pixel = pixelRef.current;
+
+    // keep in sync in case resize effect hasn't fired yet
+    scene.width = c.width;
+    scene.height = c.height;
+
+    const ctx = scene.getContext("2d");
+    const pixelCtx = pixel.getContext("2d");
+    if (!ctx || !pixelCtx) return;
 
     const drawGlow = (x, y, r, col, a) => {
       ctx.save();
@@ -655,13 +705,58 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       const now = performance.now();
       const t = state.settings.reducedMotion ? 0 : now / 1000;
 
+      // If reducedMotion flips, adjust pixel size to keep the aesthetic readable.
+      const desiredPx = state.settings.reducedMotion ? 4 : 3;
+      if (pixelSizeRef.current !== desiredPx) {
+        pixelSizeRef.current = desiredPx;
+        pixel.width = Math.max(1, Math.floor(c.width / desiredPx));
+        pixel.height = Math.max(1, Math.floor(c.height / desiredPx));
+      }
+
+      // Ensure buffers match the visible canvas.
+      if (scene.width !== c.width || scene.height !== c.height) {
+        scene.width = c.width;
+        scene.height = c.height;
+      }
+
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.clearRect(0, 0, scene.width, scene.height);
 
       if (mode === "sky") drawSky(t);
       else drawVillage(t);
 
+      // subtle film grain / dithering (becomes pixelated after the blit)
+      if (noiseRef.current) {
+        const W = scene.width;
+        const H = scene.height;
+        ctx.save();
+        ctx.globalAlpha = 0.06;
+        ctx.globalCompositeOperation = "overlay";
+        const shiftX = (now * 0.02) % noiseRef.current.width;
+        const shiftY = (now * 0.015) % noiseRef.current.height;
+        for (let x = -noiseRef.current.width; x < W + noiseRef.current.width; x += noiseRef.current.width) {
+          for (let y = -noiseRef.current.height; y < H + noiseRef.current.height; y += noiseRef.current.height) {
+            ctx.drawImage(noiseRef.current, x - shiftX, y - shiftY);
+          }
+        }
+        ctx.restore();
+      }
+
       drawFx(now);
+
+      // Pixelate scene -> display.
+      const W = c.width;
+      const H = c.height;
+      const PW = pixel.width;
+      const PH = pixel.height;
+      pixelCtx.imageSmoothingEnabled = false;
+      displayCtx.imageSmoothingEnabled = false;
+      pixelCtx.setTransform(1, 0, 0, 1, 0, 0);
+      pixelCtx.clearRect(0, 0, PW, PH);
+      pixelCtx.drawImage(scene, 0, 0, PW, PH);
+      displayCtx.setTransform(1, 0, 0, 1, 0, 0);
+      displayCtx.clearRect(0, 0, W, H);
+      displayCtx.drawImage(pixel, 0, 0, PW, PH, 0, 0, W, H);
 
       rafRef.current = requestAnimationFrame(loop);
     };

@@ -43,8 +43,20 @@ function baseState() {
     whispers: 0, // Omens (pre-awakening)
     stardust: 0, // Starlight bucket
 
-    village: { huts: 0, farms: 0, temples: 0, festivals: 0, council: 0 },
+    village: {
+      huts: 0,
+      farms: 0,
+      temples: 0,
+      shrines: 0,
+      festivals: 0,
+      council: 0,
+    },
     sky: { starsong: 0, orbits: 0, telescope: 0, transcend: 0, crown: 0 },
+
+    // short-lived boosts; values are in "t" seconds
+    buffs: {
+      portentUntil: 0,
+    },
 
     unlocked: { awakened: false, convert: false, sky: false },
     ui: {
@@ -102,7 +114,7 @@ function migrateState(s) {
   next.stardust = Math.max(0, next.stardust);
 
   next.village = Object.assign(
-    { huts: 0, farms: 0, temples: 0, festivals: 0, council: 0 },
+    { huts: 0, farms: 0, temples: 0, shrines: 0, festivals: 0, council: 0 },
     next.village || {}
   );
   next.sky = Object.assign(
@@ -113,6 +125,8 @@ function migrateState(s) {
     { awakened: false, convert: false, sky: false },
     next.unlocked || {}
   );
+
+  next.buffs = Object.assign({ portentUntil: 0 }, next.buffs || {});
   next.ui = Object.assign(
     {
       tutorialHidden: false,

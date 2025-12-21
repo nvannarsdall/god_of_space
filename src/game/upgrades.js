@@ -34,14 +34,23 @@ const VILLAGE_UPGRADES = [
     effect: (lvl) => `Reverence +${Math.round((lvl + 1) * 8)}%, unlock Convert`,
   },
   {
+    id: "shrines",
+    name: "Shrines",
+    desc: "Small altars that drink the dusk. Generates Omens passively.",
+    baseCost: 170,
+    growth: 1.2,
+    currency: "devotion",
+    effect: (lvl) => `Omens +${(0.05 * (lvl + 1)).toFixed(2)}/s`,
+  },
+  {
     id: "festivals",
     name: "Festivals",
-    desc: "Rapture spreads: bigger click bursts and devotion surges.",
+    desc: "Rapture spreads: more Omens from rituals and occasional reverence surges.",
     baseCost: 620,
     growth: 1.23,
     currency: "devotion",
     effect: (lvl) =>
-      `Click +${Math.round((lvl + 1) * 6)}%, surges +${Math.round(
+      `Omens/click +${Math.round((lvl + 1) * 6)}%, surges +${Math.round(
         (lvl + 1) * 3
       )}%`,
   },

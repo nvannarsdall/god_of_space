@@ -4,6 +4,7 @@ import { Button } from "../components/ui";
 
 function TutorialOverlay({
   rect,
+  rects,
   title,
   body,
   step,
@@ -28,14 +29,16 @@ function TutorialOverlay({
   }, []);
 
   const pad = 12;
-  const r = rect
-    ? {
-        x: Math.max(0, rect.left - pad),
-        y: Math.max(0, rect.top - pad),
-        w: Math.max(0, rect.width + pad * 2),
-        h: Math.max(0, rect.height + pad * 2),
-      }
-    : null;
+  const list = Array.isArray(rects) && rects.length ? rects : rect ? [rect] : [];
+  const rs = list
+    .filter(Boolean)
+    .map((rr) => ({
+      x: Math.max(0, rr.left - pad),
+      y: Math.max(0, rr.top - pad),
+      w: Math.max(0, rr.width + pad * 2),
+      h: Math.max(0, rr.height + pad * 2),
+    }));
+  const r = rs.length ? rs[0] : null;
 
   useEffect(() => {
     if (!panelRef.current) return;
@@ -77,17 +80,18 @@ function TutorialOverlay({
         <defs>
           <mask id="holeMask">
             <rect x="0" y="0" width="100%" height="100%" fill="white" />
-            {r && (
+            {rs.map((h, i) => (
               <rect
-                x={r.x}
-                y={r.y}
-                width={r.w}
-                height={r.h}
+                key={i}
+                x={h.x}
+                y={h.y}
+                width={h.w}
+                height={h.h}
                 rx="18"
                 ry="18"
                 fill="black"
               />
-            )}
+            ))}
           </mask>
         </defs>
 
@@ -100,19 +104,20 @@ function TutorialOverlay({
           mask="url(#holeMask)"
         />
 
-        {r && (
+        {rs.map((h, i) => (
           <rect
-            x={r.x}
-            y={r.y}
-            width={r.w}
-            height={r.h}
+            key={i}
+            x={h.x}
+            y={h.y}
+            width={h.w}
+            height={h.h}
             rx="18"
             ry="18"
             fill="transparent"
-            stroke="rgba(160,220,255,0.7)"
-            strokeWidth="2"
+            stroke={i === 0 ? "rgba(160,220,255,0.8)" : "rgba(160,220,255,0.45)"}
+            strokeWidth={i === 0 ? "2" : "1.6"}
           />
-        )}
+        ))}
       </svg>
 
       <div ref={panelRef} className="tutPanel" style={panelStyle}>

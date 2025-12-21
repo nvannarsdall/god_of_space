@@ -4,6 +4,7 @@ function compute(s) {
   const huts = s.village.huts || 0;
   const farms = s.village.farms || 0;
   const temples = s.village.temples || 0;
+  const shrines = s.village.shrines || 0;
   const festivals = s.village.festivals || 0;
   const council = s.village.council || 0;
 
@@ -19,7 +20,7 @@ function compute(s) {
   // follower growth: only after awakened AND huts>=1
   const growthAdd = huts >= 1 ? 0.07 + huts * 0.07 + farms * 0.11 : 0;
   const pressure = cap <= 0 ? 1 : clamp(1 - s.followers / cap, 0, 1);
-  const followerRate =
+  let followerRate =
     s.unlocked.awakened && huts >= 1 ? growthAdd * (0.2 + 0.8 * pressure) : 0;
 
   // devotion/reverence per follower
@@ -33,9 +34,17 @@ function compute(s) {
   const surgeEV = 1 + surgeChance * (surgeMult - 1);
 
   const globalMul = 1 + crown * 0.05;
-  const devotionRate = s.unlocked.awakened
+  let devotionRate = s.unlocked.awakened
     ? s.followers * devotionPerFollower * surgeEV * globalMul
     : 0;
+
+  // Omens: a parallel currency. Clicks generate most of it early; Shrines add a small passive stream.
+  // (Omens never "turn into" Reverence anymore.)
+  const omenRate = s.unlocked.awakened
+    ? (0.05 * shrines + 0.01 * festivals) * globalMul
+    : 0;
+  const omenClickGain =
+    (1 + 0.06 * festivals + 0.02 * shrines) * (0.9 + 0.1 * globalMul);
 
   let convertEff = 0.02;
   convertEff *= 1 + temples * 0.02;
@@ -44,19 +53,23 @@ function compute(s) {
   const veil = clamp(1 - starsong * 0.09, 0.08, 1);
   const telescopeBonus = 1 + telescope * 0.12;
 
-  const clickDevotionBonus = 0.35 + temples * 0.03 + festivals * 0.01;
-  const clickFestivalMul = 1 + festivals * 0.06;
+  // timed buff: Portent (simple, readable, non-convoluted)
+  const portentActive = (s.buffs?.portentUntil || 0) > (s.t || 0);
+  const portentMul = portentActive ? 1.45 : 1;
+  followerRate *= portentMul;
+  devotionRate *= portentMul;
 
   return {
     cap,
     followerRate,
     devotionRate,
+    omenRate,
+    omenClickGain,
     convertEff,
     veil,
     telescopeBonus,
-    clickDevotionBonus,
-    clickFestivalMul,
     globalMul,
+    portentActive,
   };
 }
 
