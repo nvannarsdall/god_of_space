@@ -238,6 +238,10 @@ html,body{ height:100%; margin:0; background:var(--bg); color:var(--text); font-
   box-shadow: 0 16px 50px rgba(0,0,0,0.55);
   padding: 18px 18px 16px 18px;
   pointer-events:auto;
+ codex/refactor-app.js-into-multiple-files-ivkzpn
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+ main
 }
 .tutHeader{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
 .tutTitle{ font-weight: 900; font-size: 15px; letter-spacing: 0.2px; }
