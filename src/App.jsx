@@ -1,4 +1,3 @@
-/* eslint-disable */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import WorldCanvas from "./components/WorldCanvas";
 import { Button, Card, Pill, Progress } from "./components/ui";
@@ -323,14 +322,6 @@ export default function App() {
     return localStorage.getItem("gos_intro_seen") !== "1";
   });
 
-  const finishIntro = () => {
-    try {
-      localStorage.setItem("gos_intro_seen", "1");
-    } catch {
-      // ignore
-    }
-    setShowIntro(false);
-  };
   const [state, setState] = useState(() => {
     const loaded = loadState();
     const merged = loaded ? deepMerge(baseState(), loaded) : baseState();
@@ -437,22 +428,20 @@ export default function App() {
 
   // autosave
   useEffect(() => {
-    if (showIntro) return;
     if (!state.settings.autosave) return;
     const id = setInterval(() => saveState(state), 5000);
     return () => clearInterval(id);
-  }, [state, showIntro]);
+  }, [state]);
 
   // tick loop
   useEffect(() => {
-    if (showIntro) return;
     const step = state.settings.reducedMotion ? 1250 : 1000;
     const id = setInterval(() => {
       setState((s0) => {
         const s = migrateState(s0);
         const c = compute(s);
 
-        const nextDevotees = Math.min(c.cap, s.followers + c.followerRate);
+        const nextFollowers = Math.min(c.cap, s.followers + c.followerRate);
         const nextDevotion = s.devotion + c.devotionRate;
         const nextOmens = s.whispers + (c.omenRate || 0);
         const nextStardust = Math.max(0, s.stardust - 0.015);
@@ -460,7 +449,7 @@ export default function App() {
         return migrateState({
           ...s,
           t: s.t + 1,
-          followers: nextDevotees,
+          followers: nextFollowers,
           devotion: nextDevotion,
           whispers: nextOmens,
           stardust: nextStardust,
@@ -468,7 +457,7 @@ export default function App() {
       });
     }, step);
     return () => clearInterval(id);
-  }, [state.settings.reducedMotion, showIntro]);
+  }, [state.settings.reducedMotion]);
 
   // audio settings apply
   useEffect(() => {
@@ -528,7 +517,7 @@ export default function App() {
       const c = compute(s);
 
       // Village clicks are now always "ritual" clicks: they generate Omens.
-      // Faith is earned primarily from followers (passive), not from clicks.
+      // Reverence is earned primarily from followers (passive), not from clicks.
       const gain = Math.max(0.25, c.omenClickGain || 1);
       return { ...s, whispers: s.whispers + gain };
     });
@@ -613,7 +602,7 @@ export default function App() {
         power: s.power + gain,
       });
     });
-    showToast("Faith condenses into Dominion.");
+    showToast("Reverence condenses into Authority.");
   };
 
   const buy = (u, which) => {
@@ -863,12 +852,12 @@ export default function App() {
           >
             <div className="grid2">
               <div className="statBox">
-                <div className="statLabel">Devotees</div>
+                <div className="statLabel">Followers</div>
                 <div className="statValue">{fmt(state.followers)}</div>
                 <div className="statSub">Cap {fmt(computed.cap)}</div>
               </div>
               <div className="statBox">
-                <div className="statLabel">Shroud</div>
+                <div className="statLabel">Veil</div>
                 <div className="statValue">{veilPct}%</div>
                 <div className="statSub">Lower is better</div>
               </div>
@@ -955,7 +944,7 @@ export default function App() {
                     src="/assets/pixel/icon_reverence.png"
                     alt=""
                   />{" "}
-                  Faith
+                  Reverence
                 </div>
                 <div className="statValueSmall">{fmt(state.devotion)}</div>
               </div>
@@ -973,7 +962,7 @@ export default function App() {
                     src="/assets/pixel/icon_authority.png"
                     alt=""
                   />{" "}
-                  Dominion
+                  Authority
                 </div>
                 <div className="statValueSmall">{fmt(state.power)}</div>
               </div>
@@ -1003,7 +992,7 @@ export default function App() {
                       : "Unlock by buying 1 Temple"
                   }
                 >
-                  Convert Faith → Dominion
+                  Convert Reverence → Authority
                 </Button>
               </div>
             </div>
@@ -1193,7 +1182,7 @@ export default function App() {
                   ? "Tutorial: the Sky comes later"
                   : state.unlocked.sky
                   ? ""
-                  : "Unlock by gaining Dominion"
+                  : "Unlock by gaining Authority"
               }
             >
               Sky
@@ -1212,7 +1201,8 @@ export default function App() {
           {tab === "village" && (
             <>
               <div className="smallText">
-                Click the world for <b>Omens</b>. Faith is earned passively from Devotees.
+                Click the world for <b>{awakened ? "Reverence" : "Omens"}</b>.
+                Buy upgrades with Reverence.
               </div>
 
               {!isVillageListStep ? (
@@ -1252,7 +1242,7 @@ export default function App() {
 
                         <div className="rowBetween" style={{ marginTop: 10 }}>
                           <div className="smallText">
-                            Cost: <b>{fmt(cost)}</b> Faith
+                            Cost: <b>{fmt(cost)}</b> Reverence
                           </div>
                           <Button
                             disabled={!can}
@@ -1279,14 +1269,14 @@ export default function App() {
             <>
               {!isSkyTabStep ? (
                 <div className="tinyMuted">
-                  Tutorial: convert Faith into Dominion first. Then the Sky
+                  Tutorial: convert Reverence into Authority first. Then the Sky
                   will open.
                 </div>
               ) : (
                 <>
                   <div className="smallText">
-                    Click the sky for Stardust. Buy upgrades with Dominion.
-                    Lower the Shroud to reveal constellations.
+                    Click the sky for Starlight. Buy upgrades with Authority.
+                    Lower the Veil to reveal constellations.
                   </div>
                   <div
                     className={`list ${
@@ -1312,7 +1302,7 @@ export default function App() {
                           <div className="itemEffect">{u.effect(lvl)}</div>
                           <div className="rowBetween" style={{ marginTop: 10 }}>
                             <div className="smallText">
-                              Cost: <b>{fmt(cost)}</b> Dominion
+                              Cost: <b>{fmt(cost)}</b> Authority
                             </div>
                             <Button
                               disabled={!can}
@@ -1339,7 +1329,7 @@ export default function App() {
                 because it must — but because you decide it should.
               </p>
               <p>
-                The Shroud is not weather. It is history. Peel it back, and the
+                The Veil is not weather. It is history. Peel it back, and the
                 constellations become true.
               </p>
               <div className="codexBox">
@@ -1347,10 +1337,10 @@ export default function App() {
                 <ul>
                   <li>Click world → Omens (until awakened)</li>
                   <li>Omens → Call Seeker</li>
-                  <li>Devotees → Faith</li>
-                  <li>Faith → Village upgrades</li>
-                  <li>Temple → Convert → Dominion</li>
-                  <li>Dominion → Sky upgrades → Shroud falls</li>
+                  <li>Followers → Reverence</li>
+                  <li>Reverence → Village upgrades</li>
+                  <li>Temple → Convert → Authority</li>
+                  <li>Authority → Sky upgrades → Veil falls</li>
                 </ul>
               </div>
             </div>
@@ -1412,9 +1402,6 @@ export default function App() {
           onSkip={skipTutorial}
         />
       )}
-
-      {/* Intro Cutscene Overlay */}
-      {showIntro && <IntroCutscene onDone={finishIntro} />}
 
       {/* Toast */}
       {toast && <div className="toast">{toast}</div>}
