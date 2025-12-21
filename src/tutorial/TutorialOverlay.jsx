@@ -127,11 +127,7 @@ function TutorialOverlay({
           <Button variant="ghost" onClick={onSkip}>
             Skip tutorial
           </Button>
-          {showNext && (
-            <Button onClick={onNext}>
-              {nextLabel}
-            </Button>
-          )}
+          {showNext && <Button onClick={onNext}>{nextLabel}</Button>}
         </div>
       </div>
     </div>

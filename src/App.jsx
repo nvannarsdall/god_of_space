@@ -16,10 +16,6 @@ import {
 import TutorialOverlay from "./tutorial/TutorialOverlay";
 import { buildTutorialSteps } from "./tutorial/tutorialData";
 
-const TAB_VILLAGE = "village";
-const TAB_SKY = "sky";
-const TAB_CODEX = "codex";
-
 export default function App() {
   const [state, setState] = useState(() => {
     const loaded = loadState();
@@ -259,6 +255,7 @@ export default function App() {
     showToast("A Seeker enters the dusk.");
   };
 
+ codex/refactor-app.js-into-multiple-files-ivkzpn
   const spendOmens = () => {
     setState((s0) => {
       const s = migrateState(s0);
@@ -274,6 +271,8 @@ export default function App() {
     showToast("Omens fade into Reverence.");
   };
 
+
+ main
   const convert = () => {
     setState((s0) => {
       const s = migrateState(s0);
@@ -341,8 +340,8 @@ export default function App() {
 
   // ensure tab availability
   useEffect(() => {
-    if (state.ui.tab === TAB_SKY && !state.unlocked.sky) {
-      setTab(TAB_VILLAGE);
+    if (state.ui.tab === "sky" && !state.unlocked.sky) {
+      setTab("village");
     }
   }, [state.ui.tab, state.unlocked.sky]);
 
@@ -448,7 +447,10 @@ export default function App() {
     (state.power || 0) > 0 ||
     (state.village?.huts || 0) > 0 ||
     (state.sky?.starsong || 0) > 0;
+codex/refactor-app.js-into-multiple-files-ivkzpn
   const omenSpend = Math.min(10, state.whispers);
+
+main
 
   return (
     <div className="appRoot">
@@ -537,10 +539,13 @@ export default function App() {
               <div className="statValueSmall">{fmt(state.whispers)}</div>
             </div>
 
+ codex/refactor-app.js-into-multiple-files-ivkzpn
             <div className="statSub">
               Earned by clicking before you awaken.
               {awakened ? " Spend leftovers for a small Reverence burst." : ""}
             </div>
+
+            <div className="statSub">Earned by clicking before you awaken.</div> main
 
             {!awakened && (
               <>
@@ -565,6 +570,7 @@ export default function App() {
                 </div>
               </>
             )}
+ codex/refactor-app.js-into-multiple-files-ivkzpn
             {awakened && state.whispers > 0 && (
               <div style={{ marginTop: 8 }}>
                 <Button variant="secondary" onClick={spendOmens}>
@@ -572,6 +578,7 @@ export default function App() {
                 </Button>
               </div>
             )}
+ main
           </div>
 
           <div className="statBox">
@@ -776,22 +783,20 @@ export default function App() {
         >
           <div className="tabs">
             <button
-              className={`tab ${tab === TAB_VILLAGE ? "tabActive" : ""} ${
+              className={`tab ${tab === "village" ? "tabActive" : ""} ${
                 tutorialOn && !isVillageListStep ? "tabDisabled" : ""
               }`}
-              onClick={() =>
-                !tutorialOn || isVillageListStep ? setTab(TAB_VILLAGE) : null
-              }
+              onClick={() => !tutorialOn || isVillageListStep ? setTab("village") : null}
             >
               Village
             </button>
             <button
               ref={skyTabRef}
-              className={`tab ${tab === TAB_SKY ? "tabActive" : ""} ${
+              className={`tab ${tab === "sky" ? "tabActive" : ""} ${
                 !isSkyTabStep || !state.unlocked.sky ? "tabDisabled" : ""
               } ${tutorialStepData?.id === "sky" ? "tutTarget" : ""}`}
               onClick={() =>
-                isSkyTabStep && state.unlocked.sky && setTab(TAB_SKY)
+                isSkyTabStep && state.unlocked.sky && setTab("sky")
               }
               title={
                 !isSkyTabStep
@@ -804,16 +809,16 @@ export default function App() {
               Sky
             </button>
             <button
-              className={`tab ${tab === TAB_CODEX ? "tabActive" : ""} ${
+              className={`tab ${tab === "codex" ? "tabActive" : ""} ${
                 tutorialOn ? "tabDisabled" : ""
               }`}
-              onClick={() => !tutorialOn && setTab(TAB_CODEX)}
+              onClick={() => !tutorialOn && setTab("codex")}
             >
               Codex
             </button>
           </div>
 
-          {tab === TAB_VILLAGE && (
+          {tab === "village" && (
             <>
               <div className="smallText">
                 Click the world for <b>{awakened ? "Reverence" : "Omens"}</b>.
@@ -877,7 +882,7 @@ export default function App() {
             </>
           )}
 
-          {tab === TAB_SKY && (
+          {tab === "sky" && (
             <>
               {!isSkyTabStep ? (
                 <div className="tinyMuted">
@@ -933,7 +938,7 @@ export default function App() {
             </>
           )}
 
-          {tab === TAB_CODEX && (
+          {tab === "codex" && (
             <div className="codex">
               <div className="codexTitle">Codex</div>
               <p>
