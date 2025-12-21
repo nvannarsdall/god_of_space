@@ -35,11 +35,19 @@ export default function App() {
 
   // tutorial/menu spotlight refs
   const worldRef = useRef(null);
-  const statusRef = useRef(null);
   const seekerBtnRef = useRef(null);
+  const statusRef = useRef(null);
   const upgradesRef = useRef(null);
   const convertBtnRef = useRef(null);
   const skyTabRef = useRef(null);
+
+  // helper for tutorial rects (stable + reusable)
+  const getRectFromRef = (ref) => {
+    const el = ref?.current;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { left: r.left, top: r.top, width: r.width, height: r.height };
+  };
 
   const tab = state.ui.tab;
   const awakened = state.unlocked.awakened;
@@ -55,12 +63,7 @@ export default function App() {
     return buildTutorialSteps({
       state,
       seekerCost,
-      getRect: (ref) => {
-        const el = ref?.current;
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        return { left: r.left, top: r.top, width: r.width, height: r.height };
-      },
+      getRect: getRectFromRef,
       refs: {
         world: worldRef,
         status: statusRef,
@@ -70,11 +73,13 @@ export default function App() {
         skyTab: skyTabRef,
       },
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, tutorialOn, seekerCost]);
 
   const tutorialStepData = tutorialOn
     ? tutorialSteps[clamp(tutStep, 0, tutorialSteps.length - 1)]
     : null;
+
   const tutorialTotal = tutorialSteps.length || 6;
   const tutorialIndex = tutorialStepData
     ? clamp(tutStep, 0, tutorialTotal - 1)
@@ -458,7 +463,25 @@ export default function App() {
     (state.village?.shrines || 0) > 0 ||
     (state.sky?.starsong || 0) > 0;
 
-  const portentRemaining = Math.max(0, (state.buffs?.portentUntil || 0) - state.t);
+  const portentRemaining = Math.max(
+    0,
+    (state.buffs?.portentUntil || 0) - state.t
+  );
+  const portentActive = Boolean(computed?.portentActive);
+
+  // Fix tutorial “panel obstructs screen”:
+  // If the tutorial step anchors to the full-screen world, force the anchor to Status instead.
+  const tutorialRect =
+    tutorialOn && tutorialStepData
+      ? tutorialStepData.id === "omens"
+        ? getRectFromRef(statusRef) || tutorialStepData.target?.()
+        : tutorialStepData.target?.()
+      : null;
+
+  const tutorialRects =
+    tutorialOn && tutorialStepData?.targets
+      ? tutorialStepData.targets.map((fn) => fn()).filter(Boolean)
+      : null;
 
   return (
     <div className="appRoot">
@@ -524,128 +547,158 @@ export default function App() {
           opacity: inMenu ? 0.6 : 1,
         }}
       >
+        {/* IMPORTANT: ref goes on a real DOM element, not the Card component */}
         <div ref={statusRef}>
           <Card
             title="Status"
             right={<Pill>Day {Math.floor(state.t / 60) + 1}</Pill>}
           >
-          <div className="grid2">
-            <div className="statBox">
-              <div className="statLabel">Followers</div>
-              <div className="statValue">{fmt(state.followers)}</div>
-              <div className="statSub">Cap {fmt(computed.cap)}</div>
-            </div>
-            <div className="statBox">
-              <div className="statLabel">Veil</div>
-              <div className="statValue">{veilPct}%</div>
-              <div className="statSub">Lower is better</div>
-            </div>
-          </div>
-
-          <div className="statBox">
-            <div className="rowBetween">
-              <div className="statLabel"><img className="ico" src="/assets/pixel/icon_omens.png" alt="" /> Omens</div>
-              <div className="statValueSmall">{fmt(state.whispers)}</div>
-            </div>
-            <div className="statSub">
-              Earned from ritual clicks on the village (always) and Shrines
-              (passive). Used to call a Seeker and ignite Portents.
-            </div>
-
-            {!awakened && (
-              <>
-                <Progress value={(state.whispers / seekerCost) * 100} />
-
-                <div className="statSub">
-                  Seeker cost: {seekerCost} (
-                  {Math.max(0, seekerCost - state.whispers)} more)
-                </div>
-
-                <div
-                  ref={seekerBtnRef}
-                  className={
-                    tutorialStepData?.id === "seeker" ? "tutTarget" : ""
-                  }
-                  style={{ marginTop: 8 }}
-                >
-                  <Button
-                    onClick={callSeeker}
-                    disabled={!isSeekerStep || !canCallSeeker}
-                  >
-                    Call a Seeker ({seekerCost})
-                  </Button>
-                </div>
-              </>
-            )}
-
-            {awakened && state.whispers > 0 && (
-              <div style={{ marginTop: 8 }}>
-                <div className="rowBetween" style={{ gap: 10, flexWrap: "wrap" }}>
-                  <Button
-                    variant="secondary"
-                    onClick={invokePortent}
-                    disabled={state.whispers < PORTENT_COST || computed.portentActive}
-                    title={
-                      computed.portentActive
-                        ? "Portent is already active"
-                        : state.whispers < PORTENT_COST
-                        ? `Need ${PORTENT_COST - Math.floor(state.whispers)} more Omens`
-                        : "Boost growth + reverence for a short time"
-                    }
-                  >
-                    Ignite Portent ({PORTENT_COST})
-                  </Button>
-                  {computed.portentActive && (
-                    <Pill>Portent: {Math.ceil(portentRemaining)}s</Pill>
-                  )}
-                </div>
+            <div className="grid2">
+              <div className="statBox">
+                <div className="statLabel">Followers</div>
+                <div className="statValue">{fmt(state.followers)}</div>
+                <div className="statSub">Cap {fmt(computed.cap)}</div>
               </div>
-            )}
-          </div>
+              <div className="statBox">
+                <div className="statLabel">Veil</div>
+                <div className="statValue">{veilPct}%</div>
+                <div className="statSub">Lower is better</div>
+              </div>
+            </div>
 
-          <div className="statBox">
-            <div className="rowBetween">
-              <div className="statLabel"><img className="ico" src="/assets/pixel/icon_reverence.png" alt="" /> Reverence</div>
-              <div className="statValueSmall">{fmt(state.devotion)}</div>
-            </div>
-            <div className="statSub">
-              Rate: {fmt(computed.devotionRate)}/s {awakened ? "" : "(locked)"}
-            </div>
-          </div>
+            <div className="statBox">
+              <div className="rowBetween">
+                <div className="statLabel">
+                  <img
+                    className="ico"
+                    src="/assets/pixel/icon_omens.png"
+                    alt=""
+                  />{" "}
+                  Omens
+                </div>
+                <div className="statValueSmall">{fmt(state.whispers)}</div>
+              </div>
+              <div className="statSub">
+                Earned from ritual clicks on the village (always) and Shrines
+                (passive). Used to call a Seeker and ignite Portents.
+              </div>
 
-          <div className="statBox">
-            <div className="rowBetween">
-              <div className="statLabel"><img className="ico" src="/assets/pixel/icon_authority.png" alt="" /> Authority</div>
-              <div className="statValueSmall">{fmt(state.power)}</div>
+              {!awakened && (
+                <>
+                  <Progress value={(state.whispers / seekerCost) * 100} />
+
+                  <div className="statSub">
+                    Seeker cost: {seekerCost} (
+                    {Math.max(0, seekerCost - state.whispers)} more)
+                  </div>
+
+                  <div
+                    ref={seekerBtnRef}
+                    className={
+                      tutorialStepData?.id === "seeker" ? "tutTarget" : ""
+                    }
+                    style={{ marginTop: 8 }}
+                  >
+                    <Button
+                      onClick={callSeeker}
+                      disabled={!isSeekerStep || !canCallSeeker}
+                    >
+                      Call a Seeker ({seekerCost})
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {awakened && (
+                <div style={{ marginTop: 8 }}>
+                  <div
+                    className="rowBetween"
+                    style={{ gap: 10, flexWrap: "wrap" }}
+                  >
+                    <Button
+                      variant="secondary"
+                      onClick={invokePortent}
+                      disabled={state.whispers < PORTENT_COST || portentActive}
+                      title={
+                        portentActive
+                          ? "Portent is already active"
+                          : state.whispers < PORTENT_COST
+                          ? `Need ${
+                              PORTENT_COST - Math.floor(state.whispers)
+                            } more Omens`
+                          : "Boost growth + reverence for a short time"
+                      }
+                    >
+                      Ignite Portent ({PORTENT_COST})
+                    </Button>
+                    {portentActive && (
+                      <Pill>Portent: {Math.ceil(portentRemaining)}s</Pill>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="statSub">
-              Earned by conversion (and sky clicks later).
+
+            <div className="statBox">
+              <div className="rowBetween">
+                <div className="statLabel">
+                  <img
+                    className="ico"
+                    src="/assets/pixel/icon_reverence.png"
+                    alt=""
+                  />{" "}
+                  Reverence
+                </div>
+                <div className="statValueSmall">{fmt(state.devotion)}</div>
+              </div>
+              <div className="statSub">
+                Rate: {fmt(computed.devotionRate)}/s{" "}
+                {awakened ? "" : "(locked)"}
+              </div>
             </div>
-            <div
-              ref={convertBtnRef}
-              className={tutorialStepData?.id === "convert" ? "tutTarget" : ""}
-              style={{ marginTop: 8 }}
-            >
-              <Button
-                variant="secondary"
-                onClick={convert}
-                disabled={
-                  !isConvertStep ||
-                  !state.unlocked.convert ||
-                  state.devotion < 10
+
+            <div className="statBox">
+              <div className="rowBetween">
+                <div className="statLabel">
+                  <img
+                    className="ico"
+                    src="/assets/pixel/icon_authority.png"
+                    alt=""
+                  />{" "}
+                  Authority
+                </div>
+                <div className="statValueSmall">{fmt(state.power)}</div>
+              </div>
+              <div className="statSub">
+                Earned by conversion (and sky clicks later).
+              </div>
+              <div
+                ref={convertBtnRef}
+                className={
+                  tutorialStepData?.id === "convert" ? "tutTarget" : ""
                 }
-                title={
-                  !isConvertStep
-                    ? "Tutorial: conversion comes later"
-                    : state.unlocked.convert
-                    ? ""
-                    : "Unlock by buying 1 Temple"
-                }
+                style={{ marginTop: 8 }}
               >
-                Convert Reverence → Authority
-              </Button>
+                <Button
+                  variant="secondary"
+                  onClick={convert}
+                  disabled={
+                    !isConvertStep ||
+                    !state.unlocked.convert ||
+                    state.devotion < 10
+                  }
+                  title={
+                    !isConvertStep
+                      ? "Tutorial: conversion comes later"
+                      : state.unlocked.convert
+                      ? ""
+                      : "Unlock by buying 1 Temple"
+                  }
+                >
+                  Convert Reverence → Authority
+                </Button>
+              </div>
             </div>
-          </div>
           </Card>
         </div>
 
@@ -1040,8 +1093,8 @@ export default function App() {
       {/* Spotlight Tutorial */}
       {tutorialOn && tutorialStepData && (
         <TutorialOverlay
-          rect={tutorialStepData.target?.()}
-          rects={tutorialStepData.targets?.map((fn) => fn()).filter(Boolean)}
+          rect={tutorialRect}
+          rects={tutorialRects}
           title={tutorialStepData.title}
           body={tutorialStepData.body}
           step={tutorialIndex + 1}

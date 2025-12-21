@@ -18,7 +18,7 @@ function TutorialOverlay({
     w: window.innerWidth,
     h: window.innerHeight,
   });
-  const [panelHeight, setPanelHeight] = useState(220);
+  const [panelHeight, setPanelHeight] = useState(240);
   const panelRef = useRef(null);
 
   useEffect(() => {
@@ -29,47 +29,48 @@ function TutorialOverlay({
   }, []);
 
   const pad = 12;
-  const list = Array.isArray(rects) && rects.length ? rects : rect ? [rect] : [];
-  const rs = list
-    .filter(Boolean)
-    .map((rr) => ({
-      x: Math.max(0, rr.left - pad),
-      y: Math.max(0, rr.top - pad),
-      w: Math.max(0, rr.width + pad * 2),
-      h: Math.max(0, rr.height + pad * 2),
-    }));
+  const list =
+    Array.isArray(rects) && rects.length ? rects : rect ? [rect] : [];
+  const rs = list.filter(Boolean).map((rr) => ({
+    x: Math.max(0, rr.left - pad),
+    y: Math.max(0, rr.top - pad),
+    w: Math.max(0, rr.width + pad * 2),
+    h: Math.max(0, rr.height + pad * 2),
+  }));
+
   const r = rs.length ? rs[0] : null;
 
   useEffect(() => {
     if (!panelRef.current) return;
-    const update = () => {
-      const box = panelRef.current?.getBoundingClientRect?.();
-      if (box?.height) setPanelHeight(box.height);
-    };
-    update();
-  }, [title, body, r, viewport.w, viewport.h]);
+    const box = panelRef.current.getBoundingClientRect();
+    if (box?.height) setPanelHeight(box.height);
+  }, [title, body, viewport.w, viewport.h]);
 
   const panelStyle = useMemo(() => {
     if (!r) {
       return {
         left: "50%",
-        top: "auto",
         bottom: "26px",
         transform: "translateX(-50%)",
       };
     }
 
     const panelWidth = Math.min(560, viewport.w - 32);
-    const preferBottom = r.y + r.h + 220 < viewport.h;
-    const top = preferBottom ? r.y + r.h + 16 : Math.max(16, r.y - 210);
-    const left = clamp(r.x + r.w / 2 - panelWidth / 2, 16, viewport.w - 16);
-    const maxTop = Math.max(16, viewport.h - panelHeight - 16);
+    const spaceBelow = viewport.h - (r.y + r.h);
+    const placeBelow = spaceBelow >= panelHeight + 20;
+
+    const top = placeBelow
+      ? r.y + r.h + 16
+      : Math.max(16, r.y - panelHeight - 16);
 
     return {
       width: panelWidth,
-      left,
-      top: clamp(top, 16, maxTop),
-      bottom: "auto",
+      left: clamp(
+        r.x + r.w / 2 - panelWidth / 2,
+        16,
+        viewport.w - panelWidth - 16
+      ),
+      top: clamp(top, 16, viewport.h - panelHeight - 16),
       transform: "none",
     };
   }, [r, viewport, panelHeight]);
@@ -79,7 +80,7 @@ function TutorialOverlay({
       <svg className="tutSvg" width="100%" height="100%">
         <defs>
           <mask id="holeMask">
-            <rect x="0" y="0" width="100%" height="100%" fill="white" />
+            <rect width="100%" height="100%" fill="white" />
             {rs.map((h, i) => (
               <rect
                 key={i}
@@ -96,8 +97,6 @@ function TutorialOverlay({
         </defs>
 
         <rect
-          x="0"
-          y="0"
           width="100%"
           height="100%"
           fill="rgba(3,6,12,0.82)"
@@ -114,7 +113,9 @@ function TutorialOverlay({
             rx="18"
             ry="18"
             fill="transparent"
-            stroke={i === 0 ? "rgba(160,220,255,0.8)" : "rgba(160,220,255,0.45)"}
+            stroke={
+              i === 0 ? "rgba(160,220,255,0.8)" : "rgba(160,220,255,0.45)"
+            }
             strokeWidth={i === 0 ? "2" : "1.6"}
           />
         ))}
@@ -127,7 +128,9 @@ function TutorialOverlay({
             Step {step} of {total}
           </div>
         </div>
+
         <div className="tutBody">{body}</div>
+
         <div className="tutActions">
           <Button variant="ghost" onClick={onSkip}>
             Skip tutorial

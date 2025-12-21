@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { clamp } from "../game/state";
 
+const TOTEM_TARGET = { x: 0.52, y: 0.7 };
+
 function roundRectPath(ctx, x, y, w, h, r) {
   const rr = Math.max(0, Math.min(r, Math.min(Math.abs(w), Math.abs(h)) / 2));
   if (typeof ctx.roundRect === "function") {
@@ -127,8 +129,10 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       c.style.height = `${h}px`;
 
       // Allocate / sync offscreen buffers (scene + pixel buffer + noise).
-      if (!sceneRef.current) sceneRef.current = document.createElement("canvas");
-      if (!pixelRef.current) pixelRef.current = document.createElement("canvas");
+      if (!sceneRef.current)
+        sceneRef.current = document.createElement("canvas");
+      if (!pixelRef.current)
+        pixelRef.current = document.createElement("canvas");
 
       sceneRef.current.width = c.width;
       sceneRef.current.height = c.height;
@@ -161,35 +165,34 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Load pixel-art sprites (real assets) used by the village scene.
+  useEffect(() => {
+    let cancelled = false;
+    const load = (name, url) =>
+      new Promise((resolve) => {
+        const img = new Image();
+        img.src = url;
+        img.onload = () => resolve({ name, img });
+        img.onerror = () => resolve({ name, img: null });
+      });
 
-// Load pixel-art sprites (real assets) used by the village scene.
-useEffect(() => {
-  let cancelled = false;
-  const load = (name, url) =>
-    new Promise((resolve) => {
-      const img = new Image();
-      img.src = url;
-      img.onload = () => resolve({ name, img });
-      img.onerror = () => resolve({ name, img: null });
+    const base = "/assets/pixel";
+    Promise.all([
+      load("house", `${base}/spr_house.png`),
+      load("houseDark", `${base}/spr_house_dark.png`),
+      load("temple", `${base}/spr_temple.png`),
+      load("follower", `${base}/spr_follower.png`),
+    ]).then((items) => {
+      if (cancelled) return;
+      const imgs = {};
+      for (const it of items) if (it.img) imgs[it.name] = it.img;
+      spritesRef.current = { imgs, ready: true };
     });
 
-  const base = "/assets/pixel";
-  Promise.all([
-    load("house", `${base}/spr_house.png`),
-    load("houseDark", `${base}/spr_house_dark.png`),
-    load("temple", `${base}/spr_temple.png`),
-    load("follower", `${base}/spr_follower.png`),
-  ]).then((items) => {
-    if (cancelled) return;
-    const imgs = {};
-    for (const it of items) if (it.img) imgs[it.name] = it.img;
-    spritesRef.current = { imgs, ready: true };
-  });
-
-  return () => {
-    cancelled = true;
-  };
-}, []);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const c = canvasRef.current;
@@ -404,28 +407,33 @@ useEffect(() => {
       }
       ctx.restore();
 
-      
-const drawHouse = (x, y, w2, h2, lit) => {
-  const spr = spritesRef.current?.imgs?.[lit ? "house" : "houseDark"];
-  if (spr) {
-    ctx.save();
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(spr, x - w2 / 2, y - h2, w2, h2);
+      const drawHouse = (x, y, w2, h2, lit) => {
+        const spr = spritesRef.current?.imgs?.[lit ? "house" : "houseDark"];
+        if (spr) {
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(spr, x - w2 / 2, y - h2, w2, h2);
 
-    // warm window bloom so it doesn't look flat
-    if (lit) {
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      drawGlow(x - w2 * 0.16, y - h2 * 0.55, 26 * dpr, "rgba(255,200,120,0.22)", 0.9);
-      ctx.restore();
-    }
+          // warm window bloom so it doesn't look flat
+          if (lit) {
+            ctx.save();
+            ctx.globalCompositeOperation = "lighter";
+            drawGlow(
+              x - w2 * 0.16,
+              y - h2 * 0.55,
+              26 * dpr,
+              "rgba(255,200,120,0.22)",
+              0.9
+            );
+            ctx.restore();
+          }
 
-    ctx.restore();
-    return;
-  }
+          ctx.restore();
+          return;
+        }
 
-  ctx.save();
-  ctx.translate(x, y);
+        ctx.save();
+        ctx.translate(x, y);
         ctx.fillStyle = "rgba(255,255,255,0.08)";
         ctx.strokeStyle = "rgba(255,255,255,0.14)";
         ctx.lineWidth = 1;
@@ -467,41 +475,40 @@ const drawHouse = (x, y, w2, h2, lit) => {
         ctx.restore();
       };
 
-      
-const drawTemple = (x, y, scale) => {
-  const spr = spritesRef.current?.imgs?.temple;
-  if (spr) {
-    const s = scale * dpr;
-    const wT = 64 * s;
-    const hT = 96 * s;
-    ctx.save();
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(spr, x - wT / 2, y - hT, wT, hT);
+      const drawTemple = (x, y, scale) => {
+        const spr = spritesRef.current?.imgs?.temple;
+        if (spr) {
+          const s = scale * dpr;
+          const wT = 64 * s;
+          const hT = 96 * s;
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(spr, x - wT / 2, y - hT, wT, hT);
 
-    // cool beam shimmer
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    const g = ctx.createLinearGradient(0, y - hT * 1.35, 0, y);
-    g.addColorStop(0, "rgba(160,220,255,0.0)");
-    g.addColorStop(0.50, "rgba(160,220,255,0.12)");
-    g.addColorStop(1, "rgba(160,220,255,0.0)");
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.moveTo(x - wT * 0.14, y);
-    ctx.lineTo(x - wT * 0.03, y - hT * 1.25);
-    ctx.lineTo(x + wT * 0.03, y - hT * 1.25);
-    ctx.lineTo(x + wT * 0.14, y);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+          // cool beam shimmer
+          ctx.save();
+          ctx.globalCompositeOperation = "lighter";
+          const g = ctx.createLinearGradient(0, y - hT * 1.35, 0, y);
+          g.addColorStop(0, "rgba(160,220,255,0.0)");
+          g.addColorStop(0.5, "rgba(160,220,255,0.12)");
+          g.addColorStop(1, "rgba(160,220,255,0.0)");
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.moveTo(x - wT * 0.14, y);
+          ctx.lineTo(x - wT * 0.03, y - hT * 1.25);
+          ctx.lineTo(x + wT * 0.03, y - hT * 1.25);
+          ctx.lineTo(x + wT * 0.14, y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
 
-    ctx.restore();
-    return;
-  }
+          ctx.restore();
+          return;
+        }
 
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(scale, scale);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
         ctx.fillStyle = "rgba(255,255,255,0.08)";
         ctx.strokeStyle = "rgba(255,255,255,0.16)";
         ctx.lineWidth = 1;
@@ -539,28 +546,33 @@ const drawTemple = (x, y, scale) => {
         ctx.restore();
       };
 
-      
-const drawFollower = (x, y, s, glow) => {
-  const spr = spritesRef.current?.imgs?.follower;
-  if (spr) {
-    const wF = 32 * s;
-    const hF = 48 * s;
-    if (glow > 0) {
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      drawGlow(x, y - hF * 0.7, 18 * dpr * glow, "rgba(160,220,255,0.16)", 1);
-      ctx.restore();
-    }
-    ctx.save();
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(spr, x - wF / 2, y - hF, wF, hF);
-    ctx.restore();
-    return;
-  }
+      const drawFollower = (x, y, s, glow) => {
+        const spr = spritesRef.current?.imgs?.follower;
+        if (spr) {
+          const wF = 32 * s;
+          const hF = 48 * s;
+          if (glow > 0) {
+            ctx.save();
+            ctx.globalCompositeOperation = "lighter";
+            drawGlow(
+              x,
+              y - hF * 0.7,
+              18 * dpr * glow,
+              "rgba(160,220,255,0.16)",
+              1
+            );
+            ctx.restore();
+          }
+          ctx.save();
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(spr, x - wF / 2, y - hF, wF, hF);
+          ctx.restore();
+          return;
+        }
 
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(s, s);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(s, s);
         if (glow > 0) {
           ctx.save();
           ctx.globalCompositeOperation = "lighter";
@@ -834,8 +846,16 @@ const drawFollower = (x, y, s, glow) => {
         ctx.globalCompositeOperation = "overlay";
         const shiftX = (now * 0.02) % noiseRef.current.width;
         const shiftY = (now * 0.015) % noiseRef.current.height;
-        for (let x = -noiseRef.current.width; x < W + noiseRef.current.width; x += noiseRef.current.width) {
-          for (let y = -noiseRef.current.height; y < H + noiseRef.current.height; y += noiseRef.current.height) {
+        for (
+          let x = -noiseRef.current.width;
+          x < W + noiseRef.current.width;
+          x += noiseRef.current.width
+        ) {
+          for (
+            let y = -noiseRef.current.height;
+            y < H + noiseRef.current.height;
+            y += noiseRef.current.height
+          ) {
             ctx.drawImage(noiseRef.current, x - shiftX, y - shiftY);
           }
         }
@@ -894,8 +914,7 @@ const drawFollower = (x, y, s, glow) => {
       addFloat(x, y, "+Starlight");
       onClickSky();
     } else {
-      const target =
-        state.village.temples > 0 ? { x: 0.82, y: 0.7 } : { x: 0.42, y: 0.73 };
+      const target = TOTEM_TARGET;
       addMotesTo(
         x,
         y,
