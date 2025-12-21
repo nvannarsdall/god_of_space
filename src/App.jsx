@@ -16,11 +16,11 @@ import {
 import TutorialOverlay from "./tutorial/TutorialOverlay";
 import { buildTutorialSteps } from "./tutorial/tutorialData";
 function IntroCutscene({ onDone }) {
+  const [phase, setPhase] = useState("idle"); // 'idle' -> 'playing' -> 'done'
   const canvasRef = React.useRef(null);
   const rafRef = React.useRef(null);
   const startTsRef = React.useRef(null);
   const starsRef = React.useRef([]);
-  const [phase, setPhase] = React.useState("idle"); // idle -> playing -> done
   const [muted, setMuted] = React.useState(false);
 
   const audioRef = React.useRef({
