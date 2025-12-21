@@ -21,6 +21,7 @@ function IntroCutscene({ onDone }) {
   const [phase, setPhase] = useState(0);
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
+  const GOD_NAME = "Astrael";
 
   const anim = useRef({
     start: 0,
@@ -64,6 +65,11 @@ function IntroCutscene({ onDone }) {
           sp: 0.4 + Math.random() * 0.8,
         }));
       }
+      ctx.lineTo(W, H * 0.48);
+      ctx.lineTo(0, H * 0.48);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
 
       const dawnBlend = clamp(t / 4, 0, 1);
       const eclipseBlend = clamp((t - 4) / 4, 0, 1);
@@ -228,7 +234,7 @@ function IntroCutscene({ onDone }) {
             style={{ fontSize: "16px", padding: "24px" }}
             onClick={onDone}
           >
-            IGNITE THE SPARK
+            REKINDLE ASTRAEL
           </button>
         </div>
       )}
