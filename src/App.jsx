@@ -41,7 +41,7 @@ export default function App() {
   const skyTabRef = useRef(null);
 
   const tab = state.ui.tab;
-  const awakened = state.unlocked.awakened;
+const awakened = state.unlocked.awakened;
 
   const tutorialOn = Boolean(
     state.ui?.tutorialActive && state.ui?.screen === "tutorial"
@@ -255,7 +255,7 @@ export default function App() {
     showToast("A Seeker enters the dusk.");
   };
 
- codex/refactor-app.js-into-multiple-files-ivkzpn
+   codex/refactor-app.js-into-multiple-files-ivkzpn
   const spendOmens = () => {
     setState((s0) => {
       const s = migrateState(s0);
