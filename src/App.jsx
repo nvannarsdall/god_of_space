@@ -16,39 +16,19 @@ import {
 import TutorialOverlay from "./tutorial/TutorialOverlay";
 import { buildTutorialSteps } from "./tutorial/tutorialData";
 
-// Embedded Pixel Sun Asset
-const SUN_BASE64 =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAHhJREFUWEft1sEJwCAMBMCw/3b05C6h4CCE+F0C9yM5b4e57ozZ+R7j4wF4A4AA8AYAAeANAALAGwAEgDcACABvABAA3gAgALwBQAB4A4AA8AYAAeANwAF8P+oF15U75QAAAABJRU5ErkJggg==";
-
 /* --- INTRO CUTSCENE --- */
 function IntroCutscene({ onDone }) {
   const [phase, setPhase] = useState(0);
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
+  const GOD_NAME = "Astrael";
 
-  const assets = useRef({ house: null, houseDark: null, sun: null });
-  const anim = useRef({ start: 0, particles: [] });
-
-  useEffect(() => {
-    // Robust Asset Loading
-    const load = (src) =>
-      new Promise((resolve) => {
-        const img = new Image();
-        img.src = src;
-        img.onload = () => resolve(img);
-        img.onerror = () => resolve(null);
-      });
-
-    Promise.all([
-      load("/assets/pixel/spr_house.png"),
-      load("/assets/pixel/spr_house_dark.png"),
-      load(SUN_BASE64),
-    ]).then(([h, hd, s]) => {
-      assets.current.house = h;
-      assets.current.houseDark = hd;
-      assets.current.sun = s;
-    });
-  }, []);
+  const anim = useRef({
+    start: 0,
+    stars: [],
+    embers: [],
+    seeded: false,
+  });
 
   useEffect(() => {
     const c = canvasRef.current;
@@ -69,120 +49,144 @@ function IntroCutscene({ onDone }) {
     const loop = (now) => {
       if (!anim.current.start) anim.current.start = now;
       const t = (now - anim.current.start) / 1000;
-      const A = assets.current;
 
-      // Timeline Logic
-      let skyCol = "#4fa4b8";
-      let groundCol = "#3e8948";
-      let ashAmt = 0;
-      let shake = 0;
-      let sunY = H * 0.2;
-      let useDark = false;
-
-      if (t > 4 && t < 9) {
-        const p = (t - 4) / 5;
-        setPhase(1);
-        skyCol = p < 0.5 ? "#d95763" : "#595652";
-        groundCol = "#595652";
-        ashAmt = p * 20;
-        shake = p * 4;
-        sunY += p * 50;
-        useDark = p > 0.6;
-      } else if (t >= 9) {
-        setPhase(2);
-        skyCol = "#1a1c2c";
-        groundCol = "#292b3d";
-        ashAmt = 10;
-        shake = 0;
-        useDark = true;
+      const phaseNow = t >= 8 ? 2 : t >= 4 ? 1 : 0;
+      if (phaseNow !== phase) {
+        setPhase(phaseNow);
       }
 
-      // 1. Draw Sky
-      ctx.fillStyle = skyCol;
+      if (!anim.current.seeded) {
+        anim.current.seeded = true;
+        anim.current.stars = Array.from({ length: 90 }, () => ({
+          x: Math.random() * W,
+          y: Math.random() * H * 0.7,
+          r: 1 + Math.random() * 1.5,
+          tw: Math.random() * Math.PI * 2,
+          sp: 0.4 + Math.random() * 0.8,
+        }));
+      }
+
+      const dawnBlend = clamp(t / 4, 0, 1);
+      const nightBlend = clamp((t - 4) / 3, 0, 1);
+      const returnBlend = clamp((t - 8) / 4, 0, 1);
+
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+      skyGrad.addColorStop(
+        0,
+        `rgba(${Math.round(12 + 22 * dawnBlend)}, ${Math.round(
+          24 + 20 * dawnBlend
+        )}, ${Math.round(56 - 20 * nightBlend + 18 * returnBlend)}, 1)`
+      );
+      skyGrad.addColorStop(
+        1,
+        `rgba(${Math.round(18 + 36 * dawnBlend)}, ${Math.round(
+          44 - 22 * nightBlend + 20 * returnBlend
+        )}, ${Math.round(72 - 46 * nightBlend + 34 * returnBlend)}, 1)`
+      );
+      ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, W, H);
 
-      // Camera Shake
+      // Aurora curtains
       ctx.save();
-      if (shake > 0) {
-        ctx.translate(
-          (Math.random() - 0.5) * shake,
-          (Math.random() - 0.5) * shake
-        );
+      ctx.globalAlpha = 0.15 + 0.25 * dawnBlend + 0.2 * returnBlend;
+      for (let x = -40; x <= W + 40; x += 28) {
+        const sway = Math.sin(t * 0.6 + x * 0.03) * 18;
+        const top = H * 0.12 + sway;
+        const bottom = H * (0.45 + 0.06 * Math.sin(t * 0.4 + x * 0.02));
+        const grad = ctx.createLinearGradient(x, top, x, bottom);
+        grad.addColorStop(0, "rgba(120, 230, 194, 0)");
+        grad.addColorStop(0.4, "rgba(120, 230, 194, 0.55)");
+        grad.addColorStop(1, "rgba(120, 230, 194, 0)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(x + sway * 0.2, top, 18, bottom - top);
       }
+      ctx.restore();
 
-      // 2. Draw Sun
-      if (A.sun && t < 8.5) {
-        ctx.imageSmoothingEnabled = false;
-        // Glow
-        ctx.fillStyle = "rgba(255, 220, 150, 0.4)";
-        ctx.fillRect(W / 2 - 20, sunY - 20, 40, 40);
-        // Sprite
-        ctx.drawImage(
-          A.sun,
-          Math.round(W / 2 - 32),
-          Math.round(sunY - 32),
-          64,
-          64
-        );
-      }
+      // Stars
+      ctx.save();
+      ctx.fillStyle = "#e6f5ff";
+      anim.current.stars.forEach((s) => {
+        const twinkle = 0.35 + 0.65 * Math.abs(Math.sin(t * s.sp + s.tw));
+        const starPresence =
+          t < 4 ? 0.55 : t < 8 ? 0.05 : 0.15 + 0.75 * returnBlend;
+        ctx.globalAlpha = twinkle * starPresence;
+        ctx.fillRect(Math.round(s.x), Math.round(s.y), s.r, s.r);
+      });
+      ctx.restore();
 
-      // 3. Draw Ground (Overscan to hide shake borders)
-      const groundY = H * 0.75;
-      pixelRect(-100, groundY, W + 200, H, groundCol); // Huge rect covers everything
+      // The Veil descends, swallowing the stars
+      if (t > 3.6 && t < 8.4) {
+        const fall = clamp((t - 3.6) / 3.8, 0, 1);
+        const veilY = H * (0.05 + 0.65 * fall);
+        ctx.save();
+        ctx.globalAlpha = 0.7 + 0.2 * fall;
+        const veilGrad = ctx.createLinearGradient(0, 0, 0, veilY);
+        veilGrad.addColorStop(0, "rgba(6, 8, 16, 0.9)");
+        veilGrad.addColorStop(1, "rgba(6, 8, 16, 0)");
+        ctx.fillStyle = veilGrad;
+        ctx.fillRect(0, 0, W, veilY);
+        ctx.restore();
 
-      if (t > 9) pixelRect(-100, groundY, W + 200, 4, "#f2f0e5");
-
-      // 4. Draw Houses
-      // Anchor them slightly INTO the ground (Y+6) so no gap appears
-      const houseY = groundY + 6;
-      const spacing = 90; // Balanced spacing
-      const numHouses = 5;
-      const startX = (W - (numHouses - 1) * spacing) / 2;
-
-      for (let i = 0; i < numHouses; i++) {
-        const hx = startX + i * spacing;
-        const sprite = useDark ? A.houseDark : A.house;
-
-        if (sprite) {
-          // Scale = 2 (Clean Hi-Bit Look)
-          const scale = 2;
-          const sw = sprite.width * scale;
-          const sh = sprite.height * scale;
-
-          ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(
-            sprite,
-            Math.round(hx - sw / 2),
-            Math.round(houseY - sh),
-            sw,
-            sh
-          );
-        } else {
-          // Fallback
-          pixelRect(hx - 20, houseY - 30, 40, 30, "#000");
+        ctx.save();
+        ctx.globalAlpha = 0.25 + 0.35 * fall;
+        ctx.fillStyle = "#101427";
+        for (let x = 0; x <= W; x += 22) {
+          const offset = Math.sin(t * 1.2 + x * 0.08) * 6;
+          ctx.fillRect(x, veilY + offset, 16, 6);
         }
+        ctx.restore();
       }
 
-      ctx.restore(); // End Shake
+      // Horizon layers
+      const groundY = H * 0.72;
+      ctx.fillStyle = "#121423";
+      ctx.beginPath();
+      ctx.moveTo(0, groundY);
+      ctx.lineTo(W * 0.2, groundY - 30);
+      ctx.lineTo(W * 0.4, groundY - 12);
+      ctx.lineTo(W * 0.6, groundY - 34);
+      ctx.lineTo(W * 0.8, groundY - 18);
+      ctx.lineTo(W, groundY - 26);
+      ctx.lineTo(W, H);
+      ctx.lineTo(0, H);
+      ctx.closePath();
+      ctx.fill();
 
-      // 5. Draw Ash
-      if (ashAmt > 0) {
-        if (Math.random() < ashAmt * 0.8) {
-          anim.current.particles.push({
-            x: Math.random() * W,
-            y: -5,
-            vx: (Math.random() - 0.5) * 3,
-            vy: 1 + Math.random() * 2,
+      ctx.fillStyle = "#0b0d18";
+      pixelRect(0, groundY, W, H - groundY, "#0b0d18");
+
+      // Village glow
+      const glow = 0.15 + 0.35 * returnBlend;
+      ctx.save();
+      ctx.globalAlpha = glow;
+      ctx.fillStyle = "#ffcc8a";
+      for (let i = 0; i < 10; i++) {
+        const x = 50 + i * 55 + (i % 2) * 10;
+        const y = groundY + 18 + (i % 3) * 4;
+        ctx.fillRect(x, y, 6, 6);
+      }
+      ctx.restore();
+
+      // Embers rising
+      if (returnBlend > 0) {
+        if (Math.random() < 0.5 + returnBlend * 0.9) {
+          anim.current.embers.push({
+            x: W / 2 + (Math.random() - 0.5) * 140,
+            y: groundY + 10,
+            vy: 0.6 + Math.random() * 1.2,
+            life: 60 + Math.random() * 40,
           });
         }
-        ctx.fillStyle = "#ddd";
-        for (let i = anim.current.particles.length - 1; i >= 0; i--) {
-          let p = anim.current.particles[i];
-          p.x += p.vx;
-          p.y += p.vy;
-          ctx.fillRect(Math.round(p.x), Math.round(p.y), 3, 3);
-          if (p.y > H) anim.current.particles.splice(i, 1);
+        ctx.fillStyle = "#ffb566";
+        for (let i = anim.current.embers.length - 1; i >= 0; i--) {
+          const e = anim.current.embers[i];
+          e.y -= e.vy;
+          e.life -= 1;
+          ctx.globalAlpha = Math.max(0, e.life / 100);
+          ctx.fillRect(Math.round(e.x), Math.round(e.y), 2, 2);
+          if (e.life <= 0 || e.y < 0) anim.current.embers.splice(i, 1);
         }
+        ctx.globalAlpha = 1;
       }
 
       // 6. Text
@@ -198,9 +202,14 @@ function IntroCutscene({ onDone }) {
         ctx.shadowOffsetY = 0;
       };
 
-      if (t > 1 && t < 4) drawText("THE SKY WAS OUR GUIDE", H / 3);
-      if (t > 5 && t < 8) drawText("UNTIL THE ASH FELL", H / 3, "#e64539");
-      if (t > 9) drawText("NOW WE WAIT IN THE DARK", H / 3);
+      if (t > 0.8 && t < 4)
+        drawText(`WE HONORED ${GOD_NAME}`, H / 3);
+      if (t > 4.2 && t < 8)
+        drawText("THE VEIL FELL, STARS WENT DARK", H / 3, "#f2b97d");
+      if (t > 8.2 && t < 11)
+        drawText(`${GOD_NAME} STIRS AS THE SKY RETURNS`, H / 3, "#f5e1c5");
+      if (t >= 11)
+        drawText("VILLAGE AND GOD RISE TOGETHER", H / 3, "#f5e1c5");
 
       rafRef.current = requestAnimationFrame(loop);
     };
@@ -240,7 +249,7 @@ function IntroCutscene({ onDone }) {
             style={{ fontSize: "16px", padding: "24px" }}
             onClick={onDone}
           >
-            IGNITE THE SPARK
+            REKINDLE ASTRAEL
           </button>
         </div>
       )}
