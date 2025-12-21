@@ -16,238 +16,242 @@ import {
 import TutorialOverlay from "./tutorial/TutorialOverlay";
 import { buildTutorialSteps } from "./tutorial/tutorialData";
 
-/* --- IMPROVED CINEMATIC INTRO --- */
+// Embedded Pixel Sun Asset
+const SUN_BASE64 =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAHhJREFUWEft1sEJwCAMBMCw/3b05C6h4CCE+F0C9yM5b4e57ozZ+R7j4wF4A4AA8AYAAeANAALAGwAEgDcACABvABAA3gAgALwBQAB4A4AA8AYAAeANwAF8P+oF15U75QAAAABJRU5ErkJggg==";
+
+/* --- INTRO CUTSCENE --- */
 function IntroCutscene({ onDone }) {
-  const [phase, setPhase] = useState("idle"); // idle -> accelerating -> flash -> done
+  const [phase, setPhase] = useState(0);
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
 
-  // Animation State (Refs for performance in render loop)
-  const animState = useRef({
-    speed: 0.2,
-    warpFactor: 0,
-    startTime: 0,
-    textAlpha: 0,
-    textIndex: 0,
-    flashOpacity: 0,
-  });
+  const assets = useRef({ house: null, houseDark: null, sun: null });
+  const anim = useRef({ start: 0, particles: [] });
 
-  const messages = [
-    "In the beginning...",
-    "The void was silent.",
-    "But you were listening.",
-    "GOD OF SPACE",
-  ];
-
-  const starsRef = useRef([]);
-
-  // Initialize Starfield
   useEffect(() => {
-    const c = canvasRef.current;
-    if (!c) return;
+    // Robust Asset Loading
+    const load = (src) =>
+      new Promise((resolve) => {
+        const img = new Image();
+        img.src = src;
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+      });
 
-    // Fill screen
-    const resize = () => {
-      c.width = window.innerWidth;
-      c.height = window.innerHeight;
-    };
-    resize();
-    window.addEventListener("resize", resize);
-
-    // Create Stars
-    starsRef.current = Array.from({ length: 400 }, () => ({
-      x: Math.random() * c.width,
-      y: Math.random() * c.height,
-      z: Math.random() * 2 + 0.1, // Depth
-      oa: Math.random(), // Original Alpha
-    }));
-
-    return () => window.removeEventListener("resize", resize);
+    Promise.all([
+      load("/assets/pixel/spr_house.png"),
+      load("/assets/pixel/spr_house_dark.png"),
+      load(SUN_BASE64),
+    ]).then(([h, hd, s]) => {
+      assets.current.house = h;
+      assets.current.houseDark = hd;
+      assets.current.sun = s;
+    });
   }, []);
 
-  // Animation Loop
   useEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
     const ctx = c.getContext("2d");
 
-    const render = (time) => {
-      const state = animState.current;
-      if (!state.startTime) state.startTime = time;
-      const progress = time - state.startTime;
+    // High-Res Pixel Canvas
+    const W = 640;
+    const H = 360;
+    c.width = W;
+    c.height = H;
 
-      const w = c.width;
-      const h = c.height;
-
-      // 1. CLEAR
-      ctx.fillStyle = "#000000";
-      ctx.fillRect(0, 0, w, h);
-
-      // 2. UPDATE PHYSICS BASED ON PHASE
-      if (phase === "accelerating") {
-        // Accelerate speed and warp stretching
-        state.speed = Math.min(state.speed * 1.05, 50);
-        state.warpFactor = Math.min(state.warpFactor + 0.5, 40);
-
-        // Text Timing Logic
-        if (state.speed > 40 && progress > 5000) {
-          // End sequence trigger
-          setPhase("flash");
-        }
-      }
-
-      // 3. DRAW STARS
-      ctx.fillStyle = "#FFFFFF";
-      starsRef.current.forEach((star) => {
-        // Move star
-        star.y += star.z * state.speed;
-
-        // Reset if off screen
-        if (star.y > h) {
-          star.y = -100;
-          star.x = Math.random() * w;
-        }
-
-        const x = star.x;
-        const y = star.y;
-        const s = Math.max(0.8, star.z * (state.speed > 2 ? 0.5 : 1.5));
-
-        // Warp Effect: Draw lines instead of dots when fast
-        if (state.warpFactor > 1) {
-          ctx.globalAlpha = Math.min(1, 0.3 * state.warpFactor * star.oa);
-          ctx.beginPath();
-          ctx.moveTo(x, y);
-          ctx.lineTo(x, y - state.warpFactor * star.z * 5);
-          ctx.strokeStyle = `rgba(255, 255, 255, ${star.oa})`;
-          ctx.lineWidth = s;
-          ctx.stroke();
-        } else {
-          // Normal Dot
-          ctx.globalAlpha = star.oa;
-          ctx.fillRect(x, y, s, s);
-        }
-      });
-
-      // 4. DRAW TEXT (Cinematic Typewriter)
-      if (phase === "accelerating") {
-        const msgDuration = 1800; // ms per message
-        const cycle = Math.floor(progress / msgDuration);
-        const localT = (progress % msgDuration) / msgDuration;
-
-        if (cycle < messages.length) {
-          // Fade in/out logic
-          const alpha =
-            localT < 0.2 ? localT * 5 : localT > 0.8 ? (1 - localT) * 5 : 1;
-
-          ctx.globalAlpha = alpha;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-
-          // Last message (Title) is bigger
-          if (cycle === messages.length - 1) {
-            ctx.font = "900 64px monospace";
-            ctx.fillStyle = "#A0DCFF";
-            // Jiggle effect for title
-            const jiggle = Math.random() * 2;
-            ctx.fillText(messages[cycle], w / 2 + jiggle, h / 2);
-          } else {
-            ctx.font = "300 24px monospace";
-            ctx.fillStyle = "#FFF";
-            ctx.fillText(messages[cycle], w / 2, h / 2);
-          }
-        }
-      }
-
-      // 5. FLASH BANG (Transition to Game)
-      if (phase === "flash") {
-        state.flashOpacity += 0.05;
-        ctx.fillStyle = `rgba(255, 255, 255, ${state.flashOpacity})`;
-        ctx.fillRect(0, 0, w, h);
-
-        if (state.flashOpacity >= 1.5) {
-          onDone(); // Trigger parent to unmount
-          return; // Stop loop
-        }
-      }
-
-      rafRef.current = requestAnimationFrame(render);
+    const pixelRect = (x, y, w, h, col) => {
+      ctx.fillStyle = col;
+      ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
     };
 
-    rafRef.current = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [phase, onDone]);
+    const loop = (now) => {
+      if (!anim.current.start) anim.current.start = now;
+      const t = (now - anim.current.start) / 1000;
+      const A = assets.current;
 
-  const startSequence = () => {
-    animState.current.startTime = performance.now();
-    setPhase("accelerating");
-  };
+      // Timeline Logic
+      let skyCol = "#4fa4b8";
+      let groundCol = "#3e8948";
+      let ashAmt = 0;
+      let shake = 0;
+      let sunY = H * 0.2;
+      let useDark = false;
+
+      if (t > 4 && t < 9) {
+        const p = (t - 4) / 5;
+        setPhase(1);
+        skyCol = p < 0.5 ? "#d95763" : "#595652";
+        groundCol = "#595652";
+        ashAmt = p * 20;
+        shake = p * 4;
+        sunY += p * 50;
+        useDark = p > 0.6;
+      } else if (t >= 9) {
+        setPhase(2);
+        skyCol = "#1a1c2c";
+        groundCol = "#292b3d";
+        ashAmt = 10;
+        shake = 0;
+        useDark = true;
+      }
+
+      // 1. Draw Sky
+      ctx.fillStyle = skyCol;
+      ctx.fillRect(0, 0, W, H);
+
+      // Camera Shake
+      ctx.save();
+      if (shake > 0) {
+        ctx.translate(
+          (Math.random() - 0.5) * shake,
+          (Math.random() - 0.5) * shake
+        );
+      }
+
+      // 2. Draw Sun
+      if (A.sun && t < 8.5) {
+        ctx.imageSmoothingEnabled = false;
+        // Glow
+        ctx.fillStyle = "rgba(255, 220, 150, 0.4)";
+        ctx.fillRect(W / 2 - 20, sunY - 20, 40, 40);
+        // Sprite
+        ctx.drawImage(
+          A.sun,
+          Math.round(W / 2 - 32),
+          Math.round(sunY - 32),
+          64,
+          64
+        );
+      }
+
+      // 3. Draw Ground (Overscan to hide shake borders)
+      const groundY = H * 0.75;
+      pixelRect(-100, groundY, W + 200, H, groundCol); // Huge rect covers everything
+
+      if (t > 9) pixelRect(-100, groundY, W + 200, 4, "#f2f0e5");
+
+      // 4. Draw Houses
+      // Anchor them slightly INTO the ground (Y+6) so no gap appears
+      const houseY = groundY + 6;
+      const spacing = 90; // Balanced spacing
+      const numHouses = 5;
+      const startX = (W - (numHouses - 1) * spacing) / 2;
+
+      for (let i = 0; i < numHouses; i++) {
+        const hx = startX + i * spacing;
+        const sprite = useDark ? A.houseDark : A.house;
+
+        if (sprite) {
+          // Scale = 2 (Clean Hi-Bit Look)
+          const scale = 2;
+          const sw = sprite.width * scale;
+          const sh = sprite.height * scale;
+
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(
+            sprite,
+            Math.round(hx - sw / 2),
+            Math.round(houseY - sh),
+            sw,
+            sh
+          );
+        } else {
+          // Fallback
+          pixelRect(hx - 20, houseY - 30, 40, 30, "#000");
+        }
+      }
+
+      ctx.restore(); // End Shake
+
+      // 5. Draw Ash
+      if (ashAmt > 0) {
+        if (Math.random() < ashAmt * 0.8) {
+          anim.current.particles.push({
+            x: Math.random() * W,
+            y: -5,
+            vx: (Math.random() - 0.5) * 3,
+            vy: 1 + Math.random() * 2,
+          });
+        }
+        ctx.fillStyle = "#ddd";
+        for (let i = anim.current.particles.length - 1; i >= 0; i--) {
+          let p = anim.current.particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          ctx.fillRect(Math.round(p.x), Math.round(p.y), 3, 3);
+          if (p.y > H) anim.current.particles.splice(i, 1);
+        }
+      }
+
+      // 6. Text
+      const drawText = (txt, y, col = "#fff") => {
+        ctx.fillStyle = col;
+        ctx.font = '20px "Press Start 2P", monospace';
+        ctx.textAlign = "center";
+        ctx.shadowColor = "#000";
+        ctx.shadowOffsetX = 3;
+        ctx.shadowOffsetY = 3;
+        ctx.fillText(txt, W / 2, y);
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      };
+
+      if (t > 1 && t < 4) drawText("THE SKY WAS OUR GUIDE", H / 3);
+      if (t > 5 && t < 8) drawText("UNTIL THE ASH FELL", H / 3, "#e64539");
+      if (t > 9) drawText("NOW WE WAIT IN THE DARK", H / 3);
+
+      rafRef.current = requestAnimationFrame(loop);
+    };
+
+    rafRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
 
   return (
     <div
-      style={{ position: "fixed", inset: 0, zIndex: 99999, background: "#000" }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 99999,
+        background: "#05040a",
+      }}
     >
       <canvas
         ref={canvasRef}
-        style={{ display: "block", width: "100%", height: "100%" }}
+        style={{ width: "100%", height: "100%", imageRendering: "pixelated" }}
       />
 
-      {phase === "idle" && (
+      {phase === 2 && (
         <div
           style={{
             position: "absolute",
-            inset: 0,
+            bottom: "20%",
+            left: 0,
+            right: 0,
             display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
             justifyContent: "center",
-            zIndex: 10,
+            animation: "fadeIn 2s ease",
           }}
         >
-          <h1
-            style={{
-              color: "white",
-              fontFamily: "monospace",
-              fontSize: "14px",
-              opacity: 0.7,
-              marginBottom: "20px",
-            }}
-          >
-            SIMULATION READY
-          </h1>
           <button
             className="btn btnPrimary"
-            style={{
-              padding: "16px 32px",
-              fontSize: "18px",
-              letterSpacing: "2px",
-              border: "1px solid rgba(255,255,255,0.5)",
-              background: "rgba(0,0,0,0.8)",
-            }}
-            onClick={startSequence}
+            style={{ fontSize: "16px", padding: "24px" }}
+            onClick={onDone}
           >
-            AWAKEN
+            IGNITE THE SPARK
           </button>
         </div>
       )}
-
-      <div style={{ position: "absolute", bottom: 20, right: 20, zIndex: 20 }}>
-        <button
-          className="btn btnGhost"
-          style={{ opacity: 0.5, fontSize: "12px" }}
-          onClick={onDone}
-        >
-          SKIP SEQUENCE
-        </button>
-      </div>
+      <style>{`@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }`}</style>
     </div>
   );
 }
 
-/* --- MAIN APP --- */
+/* --- 2. MAIN APP --- */
 export default function App() {
   const [showIntro, setShowIntro] = useState(() => {
-    // Check if user has seen intro.
-    // DEBUG: Change !== "1" to === "1" if you want to force it to show for testing
     return localStorage.getItem("gos_intro_seen") !== "1";
   });
 
@@ -258,16 +262,14 @@ export default function App() {
   });
 
   const computed = useMemo(() => compute(state), [state]);
-
   const [toast, setToast] = useState(null);
 
-  // audio
+  // Audio & Refs
   const audioRef = useRef(null);
   const urlsRef = useRef([]);
   const [playlist, setPlaylist] = useState([]);
   const [track, setTrack] = useState(0);
 
-  // tutorial/menu spotlight refs
   const worldRef = useRef(null);
   const seekerBtnRef = useRef(null);
   const statusRef = useRef(null);
@@ -275,7 +277,6 @@ export default function App() {
   const convertBtnRef = useRef(null);
   const skyTabRef = useRef(null);
 
-  // helper for tutorial rects (stable + reusable)
   const getRectFromRef = (ref) => {
     const el = ref?.current;
     if (!el) return null;
@@ -285,7 +286,6 @@ export default function App() {
 
   const tab = state.ui.tab;
   const awakened = state.unlocked.awakened;
-
   const tutorialOn = Boolean(
     state.ui?.tutorialActive && state.ui?.screen === "tutorial"
   );
@@ -312,13 +312,11 @@ export default function App() {
   const tutorialStepData = tutorialOn
     ? tutorialSteps[clamp(tutStep, 0, tutorialSteps.length - 1)]
     : null;
-
   const tutorialTotal = tutorialSteps.length || 6;
   const tutorialIndex = tutorialStepData
     ? clamp(tutStep, 0, tutorialTotal - 1)
     : 0;
   const tutorialAllows = tutorialStepData?.allow || {};
-
   const isVillageListStep = tutorialOn
     ? Boolean(tutorialAllows.villageUpgrades)
     : true;
@@ -328,13 +326,9 @@ export default function App() {
     ? Boolean(tutorialAllows.skyUpgrades)
     : true;
   const isSeekerStep = tutorialOn ? Boolean(tutorialAllows.seeker) : true;
-
   const inMenu = state.ui?.screen === "menu";
-
-  // The tutorial should guide, not block the player from using the HUD.
   const leftHudPE = "auto";
   const rightPanelPE = "auto";
-
   const veilPct = Math.round(computed.veil * 100);
 
   const showToast = (text) => {
@@ -342,53 +336,42 @@ export default function App() {
     setTimeout(() => setToast(null), 1400);
   };
 
-  // bind pixel UI textures from /public without breaking the CSS build
   useEffect(() => {
     const root = document.documentElement;
     const base = String(process.env.PUBLIC_URL || "").replace(/\/$/, "");
-    const setVar = (name, relPath) => {
+    const setVar = (name, relPath) =>
       root.style.setProperty(name, `url("${base}${relPath}")`);
-    };
     setVar("--px-panel-tile", "/assets/pixel/panel_tile.png");
     setVar("--px-btn-primary", "/assets/pixel/btn_primary.png");
     setVar("--px-btn-secondary", "/assets/pixel/btn_secondary.png");
     setVar("--px-btn-danger", "/assets/pixel/btn_danger.png");
   }, []);
 
-  // autosave
   useEffect(() => {
     if (!state.settings.autosave) return;
     const id = setInterval(() => saveState(state), 5000);
     return () => clearInterval(id);
   }, [state]);
 
-  // tick loop
   useEffect(() => {
     const step = state.settings.reducedMotion ? 1250 : 1000;
     const id = setInterval(() => {
       setState((s0) => {
         const s = migrateState(s0);
         const c = compute(s);
-
-        const nextFollowers = Math.min(c.cap, s.followers + c.followerRate);
-        const nextDevotion = s.devotion + c.devotionRate;
-        const nextOmens = s.whispers + (c.omenRate || 0);
-        const nextStardust = Math.max(0, s.stardust - 0.015);
-
         return migrateState({
           ...s,
           t: s.t + 1,
-          followers: nextFollowers,
-          devotion: nextDevotion,
-          whispers: nextOmens,
-          stardust: nextStardust,
+          followers: Math.min(c.cap, s.followers + c.followerRate),
+          devotion: s.devotion + c.devotionRate,
+          whispers: s.whispers + (c.omenRate || 0),
+          stardust: Math.max(0, s.stardust - 0.015),
         });
       });
     }, step);
     return () => clearInterval(id);
   }, [state.settings.reducedMotion]);
 
-  // audio settings apply
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
@@ -396,7 +379,6 @@ export default function App() {
     el.muted = !state.settings.musicEnabled;
   }, [state.settings.musicEnabled, state.settings.musicVolume]);
 
-  // swap track
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
@@ -405,20 +387,15 @@ export default function App() {
       el.removeAttribute("src");
       try {
         el.load();
-      } catch {
-        // ignore
-      }
+      } catch {}
       return;
     }
     const idx = clamp(track, 0, playlist.length - 1);
-    const url = playlist[idx]?.url;
-    if (url && el.src !== url) {
-      el.src = url;
+    if (el.src !== playlist[idx].url) {
+      el.src = playlist[idx].url;
       try {
         el.load();
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
     if (state.settings.musicEnabled) {
       const p = el.play();
@@ -426,12 +403,11 @@ export default function App() {
     }
   }, [playlist, track, state.settings.musicEnabled]);
 
-  // loop playlist
   useEffect(() => {
     const el = audioRef.current;
     if (!el) return;
     const onEnded = () => {
-      if (playlist.length <= 0) return;
+      if (!playlist.length) return;
       setTrack((i) => (i + 1) % playlist.length);
     };
     el.addEventListener("ended", onEnded);
@@ -442,11 +418,7 @@ export default function App() {
     setState((s0) => {
       const s = migrateState(s0);
       if (tutorialOn && !tutorialAllows.world) return s;
-
       const c = compute(s);
-
-      // Village clicks are now always "ritual" clicks: they generate Omens.
-      // Reverence is earned primarily from followers (passive), not from clicks.
       const gain = Math.max(0.25, c.omenClickGain || 1);
       return { ...s, whispers: s.whispers + gain };
     });
@@ -456,41 +428,32 @@ export default function App() {
     setState((s0) => {
       const s = migrateState(s0);
       if (tutorialOn && !tutorialAllows.world) return s;
-
       const c = compute(s);
-
       const base = 0.12 * c.telescopeBonus;
       let stardust = s.stardust + base;
       let power = s.power;
-
-      // crystallize some immediately if sky unlocked
       if (s.unlocked.sky) {
         const immediate = Math.min(stardust, 0.25);
         stardust -= immediate;
         power += immediate * 0.75;
       }
-
       return migrateState({ ...s, stardust, power });
     });
   };
 
   const canCallSeeker = !awakened && state.whispers >= seekerCost;
-
   const callSeeker = () => {
     setState((s0) => {
       const s = migrateState(s0);
       if (tutorialOn && s.ui?.tutorialStep !== 1) return s;
       if (s.unlocked.awakened) return s;
       if (s.whispers < seekerCost) return s;
-
-      const next = migrateState({
+      return migrateState({
         ...s,
         whispers: s.whispers - seekerCost,
         followers: Math.max(1, s.followers),
         unlocked: { ...s.unlocked, awakened: true },
       });
-
-      return next;
     });
     showToast("A Seeker enters the dusk.");
   };
@@ -516,13 +479,10 @@ export default function App() {
   const convert = () => {
     setState((s0) => {
       const s = migrateState(s0);
-
       if (tutorialOn && s.ui?.tutorialStep !== 4) return s;
-
       const c = compute(s);
       if (!s.unlocked.convert) return s;
       if (s.devotion < 10) return s;
-
       const spend = Math.min(s.devotion, Math.max(10, s.devotion * 0.12));
       const gain = spend * c.convertEff;
       return migrateState({
@@ -537,40 +497,34 @@ export default function App() {
   const buy = (u, which) => {
     setState((s0) => {
       const s = migrateState(s0);
-
-      // tutorial gating (keeps the early game simple)
       const tut = Boolean(s.ui?.tutorialActive && s.ui?.screen === "tutorial");
       const step = s.ui?.tutorialStep || 0;
       if (tut && which === "village") {
-        if (step < 2) return s; // no upgrades until after Seeker
-        if (step === 2 && u.id !== "huts") return s; // only Huts
-        if (step === 3 && !["huts", "temples"].includes(u.id)) return s; // Huts + Temples
+        if (step < 2) return s;
+        if (step === 2 && u.id !== "huts") return s;
+        if (step === 3 && !["huts", "temples"].includes(u.id)) return s;
       }
       if (tut && which === "sky") {
         if (step < 5) return s;
         if (step === 5 && u.id !== "starsong") return s;
       }
-
       const lvl = which === "village" ? s.village[u.id] : s.sky[u.id];
       const cost = upgradeCost(u.baseCost, u.growth, lvl);
-
       if (u.currency === "devotion") {
         if (!s.unlocked.awakened) return s;
         if (s.devotion < cost) return s;
-        const next = {
+        return migrateState({
           ...s,
           devotion: s.devotion - cost,
           village: { ...s.village, [u.id]: lvl + 1 },
-        };
-        return migrateState(next);
+        });
       }
       if (s.power < cost) return s;
-      const next = {
+      return migrateState({
         ...s,
         power: s.power - cost,
         sky: { ...s.sky, [u.id]: lvl + 1 },
-      };
-      return migrateState(next);
+      });
     });
   };
 
@@ -578,30 +532,28 @@ export default function App() {
     setState((s) => ({ ...s, ui: { ...s.ui, tab: t } }));
   };
 
-  // ensure tab availability
   useEffect(() => {
     if (state.ui.tab === "sky" && !state.unlocked.sky) {
       setTab("village");
     }
   }, [state.ui.tab, state.unlocked.sky]);
 
-  // manual save / reset
   const doSave = () => {
     saveState(state);
     showToast("Saved.");
   };
 
   const doReset = () => {
-    const keep = state.settings;
-    const next = baseState();
-    next.settings = { ...keep };
-    setState(next);
     try {
       localStorage.removeItem(LS_KEY);
-    } catch {
-      // ignore
-    }
-    showToast("Reset complete.");
+      localStorage.removeItem("gos_intro_seen");
+    } catch {}
+    window.location.reload();
+  };
+
+  const replayIntro = () => {
+    localStorage.removeItem("gos_intro_seen");
+    window.location.reload();
   };
 
   const advanceTutorial = () => {
@@ -638,7 +590,6 @@ export default function App() {
     );
   };
 
-  // when tutorial is completed or turned off, make sure we're in-game
   useEffect(() => {
     if (state.ui?.screen === "tutorial" && !state.ui?.tutorialActive) {
       setState((s) => ({ ...s, ui: { ...s.ui, screen: "game" } }));
@@ -659,9 +610,7 @@ export default function App() {
     };
     try {
       localStorage.removeItem(LS_KEY);
-    } catch {
-      // ignore
-    }
+    } catch {}
     setState(migrateState(next));
     showToast("The dusk begins.");
   };
@@ -683,35 +632,23 @@ export default function App() {
   const hasProgress =
     (state.whispers || 0) > 0 ||
     (state.followers || 0) > 0 ||
-    (state.devotion || 0) > 0 ||
-    (state.power || 0) > 0 ||
-    (state.village?.huts || 0) > 0 ||
-    (state.village?.shrines || 0) > 0 ||
-    (state.sky?.starsong || 0) > 0;
-
+    (state.devotion || 0) > 0;
   const portentRemaining = Math.max(
     0,
     (state.buffs?.portentUntil || 0) - state.t
   );
   const portentActive = Boolean(computed?.portentActive);
-
-  // Fix tutorial “panel obstructs screen”:
-  // If the tutorial step anchors to the full-screen world, force the anchor to Status instead.
   const tutorialRect =
     tutorialOn && tutorialStepData
       ? tutorialStepData.id === "omens"
         ? getRectFromRef(statusRef) || tutorialStepData.target?.()
         : tutorialStepData.target?.()
       : null;
-
   const tutorialRects =
     tutorialOn && tutorialStepData?.targets
       ? tutorialStepData.targets.map((fn) => fn()).filter(Boolean)
       : null;
 
-  // --- RENDER ---
-
-  // 1. INTRO CHECK: If intro is showing, Render that INSTEAD of the app
   if (showIntro) {
     return (
       <IntroCutscene
@@ -736,7 +673,6 @@ export default function App() {
         />
       </div>
 
-      {/* Top bar */}
       <div
         className="topBar"
         style={{
@@ -752,7 +688,6 @@ export default function App() {
               <div className="brandSub">a dusk-lit incremental world</div>
             </div>
           </div>
-
           <div className="topActions">
             <Button variant="secondary" onClick={doSave} title="Manual save">
               Save
@@ -779,7 +714,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Left HUD */}
       <div
         className="leftHud"
         style={{
@@ -787,7 +721,6 @@ export default function App() {
           opacity: inMenu ? 0.6 : 1,
         }}
       >
-        {/* IMPORTANT: ref goes on a real DOM element, not the Card component */}
         <div ref={statusRef}>
           <Card
             title="Status"
@@ -805,7 +738,6 @@ export default function App() {
                 <div className="statSub">Lower is better</div>
               </div>
             </div>
-
             <div className="statBox">
               <div className="rowBetween">
                 <div className="statLabel">
@@ -819,19 +751,12 @@ export default function App() {
                 <div className="statValueSmall">{fmt(state.whispers)}</div>
               </div>
               <div className="statSub">
-                Earned from ritual clicks on the village (always) and Shrines
-                (passive). Used to call a Seeker and ignite Portents.
+                Earned from ritual clicks on the village.
               </div>
-
               {!awakened && (
                 <>
                   <Progress value={(state.whispers / seekerCost) * 100} />
-
-                  <div className="statSub">
-                    Seeker cost: {seekerCost} (
-                    {Math.max(0, seekerCost - state.whispers)} more)
-                  </div>
-
+                  <div className="statSub">Seeker cost: {seekerCost}</div>
                   <div
                     ref={seekerBtnRef}
                     className={
@@ -848,7 +773,6 @@ export default function App() {
                   </div>
                 </>
               )}
-
               {awakened && (
                 <div style={{ marginTop: 8 }}>
                   <div
@@ -859,15 +783,6 @@ export default function App() {
                       variant="secondary"
                       onClick={invokePortent}
                       disabled={state.whispers < PORTENT_COST || portentActive}
-                      title={
-                        portentActive
-                          ? "Portent is already active"
-                          : state.whispers < PORTENT_COST
-                          ? `Need ${
-                              PORTENT_COST - Math.floor(state.whispers)
-                            } more Omens`
-                          : "Boost growth + reverence for a short time"
-                      }
                     >
                       Ignite Portent ({PORTENT_COST})
                     </Button>
@@ -878,7 +793,6 @@ export default function App() {
                 </div>
               )}
             </div>
-
             <div className="statBox">
               <div className="rowBetween">
                 <div className="statLabel">
@@ -896,7 +810,6 @@ export default function App() {
                 {awakened ? "" : "(locked)"}
               </div>
             </div>
-
             <div className="statBox">
               <div className="rowBetween">
                 <div className="statLabel">
@@ -908,9 +821,6 @@ export default function App() {
                   Authority
                 </div>
                 <div className="statValueSmall">{fmt(state.power)}</div>
-              </div>
-              <div className="statSub">
-                Earned by conversion (and sky clicks later).
               </div>
               <div
                 ref={convertBtnRef}
@@ -927,13 +837,6 @@ export default function App() {
                     !state.unlocked.convert ||
                     state.devotion < 10
                   }
-                  title={
-                    !isConvertStep
-                      ? "Tutorial: conversion comes later"
-                      : state.unlocked.convert
-                      ? ""
-                      : "Unlock by buying 1 Temple"
-                  }
                 >
                   Convert Reverence → Authority
                 </Button>
@@ -941,147 +844,8 @@ export default function App() {
             </div>
           </Card>
         </div>
-
-        {/* Music */}
-        <div style={{ marginTop: 12 }}>
-          <Card
-            title="Soundtrack"
-            right={
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  setState((s) => ({
-                    ...s,
-                    settings: {
-                      ...s.settings,
-                      musicEnabled: !s.settings.musicEnabled,
-                    },
-                  }))
-                }
-              >
-                {state.settings.musicEnabled ? "On" : "Off"}
-              </Button>
-            }
-          >
-            <input
-              className="fileInput"
-              type="file"
-              multiple
-              accept="audio/*"
-              onChange={(e) => {
-                const files = e.target.files;
-                if (!files || files.length === 0) return;
-
-                // revoke old
-                for (const u of urlsRef.current) {
-                  try {
-                    URL.revokeObjectURL(u);
-                  } catch {
-                    // ignore
-                  }
-                }
-                urlsRef.current = [];
-
-                const list = Array.from(files)
-                  .filter(
-                    (f) =>
-                      f.type?.startsWith?.("audio/") ||
-                      f.name.match(/\.(mp3|wav|ogg|m4a|aac|flac)$/i)
-                  )
-                  .map((f) => {
-                    const url = URL.createObjectURL(f);
-                    urlsRef.current.push(url);
-                    return { name: f.name, url };
-                  });
-
-                setPlaylist(list);
-                setTrack(0);
-                setState((s) => ({
-                  ...s,
-                  settings: { ...s.settings, musicEnabled: true },
-                }));
-
-                const el = audioRef.current;
-                if (el && list[0]) {
-                  el.src = list[0].url;
-                  const p = el.play();
-                  if (p && typeof p.catch === "function") p.catch(() => {});
-                }
-              }}
-            />
-
-            <div className="smallText">
-              {playlist.length
-                ? `Now: ${playlist[clamp(track, 0, playlist.length - 1)]?.name}`
-                : "Upload audio files to loop"}
-            </div>
-
-            <div className="rowBetween" style={{ gap: 8, marginTop: 8 }}>
-              <Button
-                variant="secondary"
-                disabled={!playlist.length}
-                onClick={() =>
-                  setTrack((i) =>
-                    playlist.length
-                      ? (i - 1 + playlist.length) % playlist.length
-                      : 0
-                  )
-                }
-              >
-                ◀
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={!playlist.length}
-                onClick={() => {
-                  const el = audioRef.current;
-                  if (!el) return;
-                  const p = el.play();
-                  if (p && typeof p.catch === "function") p.catch(() => {});
-                }}
-              >
-                Play
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={!playlist.length}
-                onClick={() =>
-                  setTrack((i) =>
-                    playlist.length ? (i + 1) % playlist.length : 0
-                  )
-                }
-              >
-                ▶
-              </Button>
-            </div>
-
-            <div className="rowBetween" style={{ gap: 10, marginTop: 10 }}>
-              <div className="smallText" style={{ width: 40 }}>
-                Vol
-              </div>
-              <input
-                style={{ width: "100%" }}
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={state.settings.musicVolume}
-                onChange={(e) =>
-                  setState((s) => ({
-                    ...s,
-                    settings: {
-                      ...s.settings,
-                      musicVolume: Number(e.target.value),
-                    },
-                  }))
-                }
-              />
-            </div>
-          </Card>
-        </div>
       </div>
 
-      {/* Right Panel */}
       <div
         className="rightPanel"
         style={{
@@ -1120,13 +884,6 @@ export default function App() {
               onClick={() =>
                 isSkyTabStep && state.unlocked.sky && setTab("sky")
               }
-              title={
-                !isSkyTabStep
-                  ? "Tutorial: the Sky comes later"
-                  : state.unlocked.sky
-                  ? ""
-                  : "Unlock by gaining Authority"
-              }
             >
               Sky
             </button>
@@ -1135,167 +892,92 @@ export default function App() {
                 tutorialOn ? "tabDisabled" : ""
               }`}
               onClick={() => !tutorialOn && setTab("codex")}
-              title={tutorialOn ? "Tutorial: Codex disabled" : "Open Codex"}
             >
               Codex
             </button>
           </div>
-
           {tab === "village" && (
-            <>
-              <div className="smallText">
-                Click the world for <b>{awakened ? "Reverence" : "Omens"}</b>.
-                Buy upgrades with Reverence.
-              </div>
-
-              {!isVillageListStep ? (
-                <div className="tinyMuted" style={{ marginTop: 10 }}>
-                  Tutorial: awaken first — then we’ll build a Hut.
-                </div>
-              ) : (
-                <div
-                  className={`list ${
-                    tutorialStepData?.id === "huts" ||
-                    tutorialStepData?.id === "temple"
-                      ? "tutTarget"
-                      : ""
-                  }`}
-                  ref={upgradesRef}
-                >
-                  {VILLAGE_UPGRADES.filter((u) => {
-                    if (!tutorialOn) return true;
-                    if (tutStep === 2) return u.id === "huts";
-                    if (tutStep === 3)
-                      return u.id === "huts" || u.id === "temples";
-                    return true;
-                  }).map((u) => {
-                    const lvl = state.village[u.id] || 0;
-                    const cost = upgradeCost(u.baseCost, u.growth, lvl);
-                    const can = awakened && state.devotion >= cost;
-
-                    return (
-                      <div key={u.id} className="item">
-                        <div className="itemTop">
-                          <div className="itemName">{u.name}</div>
-                          <Pill>Lvl {lvl}</Pill>
-                        </div>
-
-                        <div className="itemDesc">{u.desc}</div>
-                        <div className="itemEffect">{u.effect(lvl)}</div>
-
-                        <div className="rowBetween" style={{ marginTop: 10 }}>
-                          <div className="smallText">
-                            Cost: <b>{fmt(cost)}</b> Reverence
-                          </div>
-                          <Button
-                            disabled={!can}
-                            onClick={() => buy(u, "village")}
-                          >
-                            Buy
-                          </Button>
-                        </div>
-
-                        {!awakened && (
-                          <div className="tinyMuted">
-                            Locked until you call a Seeker.
-                          </div>
-                        )}
+            <div
+              className={`list ${
+                tutorialStepData?.id === "huts" ||
+                tutorialStepData?.id === "temple"
+                  ? "tutTarget"
+                  : ""
+              }`}
+              ref={upgradesRef}
+            >
+              {VILLAGE_UPGRADES.filter((u) => {
+                if (!tutorialOn) return true;
+                if (tutStep === 2) return u.id === "huts";
+                if (tutStep === 3) return u.id === "huts" || u.id === "temples";
+                return true;
+              }).map((u) => {
+                const lvl = state.village[u.id] || 0;
+                const cost = upgradeCost(u.baseCost, u.growth, lvl);
+                const can = awakened && state.devotion >= cost;
+                return (
+                  <div key={u.id} className="item">
+                    <div className="itemTop">
+                      <div className="itemName">{u.name}</div>
+                      <Pill>Lvl {lvl}</Pill>
+                    </div>
+                    <div className="itemDesc">{u.desc}</div>
+                    <div className="itemEffect">{u.effect(lvl)}</div>
+                    <div className="rowBetween" style={{ marginTop: 10 }}>
+                      <div className="smallText">
+                        Cost: <b>{fmt(cost)}</b> Reverence
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          )}
-
-          {tab === "sky" && (
-            <>
-              {!isSkyTabStep ? (
-                <div className="tinyMuted">
-                  Tutorial: convert Reverence into Authority first. Then the Sky
-                  will open.
-                </div>
-              ) : (
-                <>
-                  <div className="smallText">
-                    Click the sky for Starlight. Buy upgrades with Authority.
-                    Lower the Veil to reveal constellations.
+                      <Button disabled={!can} onClick={() => buy(u, "village")}>
+                        Buy
+                      </Button>
+                    </div>
                   </div>
-                  <div
-                    className={`list ${
-                      tutorialStepData?.id === "sky" ? "tutTarget" : ""
-                    }`}
-                  >
-                    {SKY_UPGRADES.filter((u) => {
-                      if (!tutorialOn) return true;
-                      if (tutStep === 5) return u.id === "starsong";
-                      return true;
-                    }).map((u) => {
-                      const lvl = state.sky[u.id] || 0;
-                      const cost = upgradeCost(u.baseCost, u.growth, lvl);
-                      const can = state.power >= cost && isSkyUpgradeStep;
-
-                      return (
-                        <div key={u.id} className="item">
-                          <div className="itemTop">
-                            <div className="itemName">{u.name}</div>
-                            <Pill>Lvl {lvl}</Pill>
-                          </div>
-                          <div className="itemDesc">{u.desc}</div>
-                          <div className="itemEffect">{u.effect(lvl)}</div>
-                          <div className="rowBetween" style={{ marginTop: 10 }}>
-                            <div className="smallText">
-                              Cost: <b>{fmt(cost)}</b> Authority
-                            </div>
-                            <Button
-                              disabled={!can}
-                              onClick={() => buy(u, "sky")}
-                              variant="primary"
-                            >
-                              Buy
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
-          {tab === "codex" && (
-            <div className="codex">
-              <div className="codexTitle">Codex</div>
-              <p>
-                You are the still point in the long night. The village grows not
-                because it must — but because you decide it should.
-              </p>
-              <p>
-                The Veil is not weather. It is history. Peel it back, and the
-                constellations become true.
-              </p>
-              <div className="codexBox">
-                <div className="codexBoxTitle">Loop</div>
-                <ul>
-                  <li>Click world → Omens (until awakened)</li>
-                  <li>Omens → Call Seeker</li>
-                  <li>Followers → Reverence</li>
-                  <li>Reverence → Village upgrades</li>
-                  <li>Temple → Convert → Authority</li>
-                  <li>Authority → Sky upgrades → Veil falls</li>
-                </ul>
-              </div>
+                );
+              })}
             </div>
           )}
-
-          <div className="tinyMuted" style={{ marginTop: 10 }}>
-            Tip: clicks always matter — progression changes what they do.
-          </div>
+          {tab === "sky" && (
+            <div
+              className={`list ${
+                tutorialStepData?.id === "sky" ? "tutTarget" : ""
+              }`}
+            >
+              {SKY_UPGRADES.filter((u) => {
+                if (!tutorialOn) return true;
+                if (tutStep === 5) return u.id === "starsong";
+                return true;
+              }).map((u) => {
+                const lvl = state.sky[u.id] || 0;
+                const cost = upgradeCost(u.baseCost, u.growth, lvl);
+                const can = state.power >= cost && isSkyUpgradeStep;
+                return (
+                  <div key={u.id} className="item">
+                    <div className="itemTop">
+                      <div className="itemName">{u.name}</div>
+                      <Pill>Lvl {lvl}</Pill>
+                    </div>
+                    <div className="itemDesc">{u.desc}</div>
+                    <div className="itemEffect">{u.effect(lvl)}</div>
+                    <div className="rowBetween" style={{ marginTop: 10 }}>
+                      <div className="smallText">
+                        Cost: <b>{fmt(cost)}</b> Authority
+                      </div>
+                      <Button
+                        disabled={!can}
+                        onClick={() => buy(u, "sky")}
+                        variant="primary"
+                      >
+                        Buy
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </div>
 
-      {/* Main Menu */}
       {inMenu && (
         <div className="menuOverlay">
           <div className="menuCard">
@@ -1303,12 +985,10 @@ export default function App() {
             <div className="menuSub">
               The sky is sealed. The village still whispers your name.
             </div>
-
             <div className="menuButtons">
               <button className="btn btnPrimary" onClick={startTutorial}>
                 Start Tutorial
               </button>
-
               <button
                 className="btn btnSecondary"
                 onClick={continueGame}
@@ -1316,25 +996,25 @@ export default function App() {
               >
                 Continue
               </button>
-
               <button className="btn btnDanger" onClick={doReset}>
                 Reset Save
               </button>
-            </div>
-
-            <div className="menuHint">
-              New? Choose <b>Start Tutorial</b>. It introduces one mechanic at a
-              time.
+              <button
+                className="btn btnGhost"
+                onClick={replayIntro}
+                style={{ fontSize: 12 }}
+              >
+                Replay Intro
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Spotlight Tutorial */}
       {tutorialOn && tutorialStepData && (
         <TutorialOverlay
-          rect={tutorialStepData.target?.() || null}
-          rects={tutorialStepData.targets?.map((f) => f())}
+          rect={tutorialRect}
+          rects={tutorialRects}
           title={tutorialStepData.title}
           body={tutorialStepData.body}
           step={tutorialIndex + 1}
@@ -1345,11 +1025,7 @@ export default function App() {
           onSkip={skipTutorial}
         />
       )}
-
-      {/* Toast */}
       {toast && <div className="toast">{toast}</div>}
-
-      {/* Music track switcher effect */}
       <TrackBinder
         playlist={playlist}
         track={track}
@@ -1363,23 +1039,18 @@ export default function App() {
 }
 
 function TrackBinder({ playlist, track, setTrack, audioRef, enabled, volume }) {
-  // keep audio element aligned with track changes
   useEffect(() => {
     const el = audioRef.current;
-    if (!el) return;
-    if (!playlist.length) return;
+    if (!el || !playlist.length) return;
     const idx = clamp(track, 0, playlist.length - 1);
     if (el.src !== playlist[idx].url) {
       el.src = playlist[idx].url;
       try {
         el.load();
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
     el.volume = clamp(volume ?? 0.65, 0, 1);
     el.muted = !enabled;
-
     if (enabled) {
       const p = el.play();
       if (p && typeof p.catch === "function") p.catch(() => {});
@@ -1396,6 +1067,5 @@ function TrackBinder({ playlist, track, setTrack, audioRef, enabled, volume }) {
     el.addEventListener("ended", onEnded);
     return () => el.removeEventListener("ended", onEnded);
   }, [playlist.length, setTrack, audioRef]);
-
   return null;
 }

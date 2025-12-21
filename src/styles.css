@@ -1,116 +1,118 @@
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap");
+
 :root {
-  /* Pixel-cosmos palette (simple + tweakable) */
+  /* Pixel Palette */
   --bg0: #05040a;
-  --bg1: #0b0a10;
+  --bg1: #1a1c2c;
+  --bg2: #292b3d;
+  --ink: #f2f0e5;
+  --muted: #8b9bb4;
+  --accent: #57a9ff;
+  --gold: #ffcd75;
+  --danger: #e64539;
 
-  --ink: rgba(255, 255, 255, 0.92);
-  --muted: rgba(255, 255, 255, 0.72);
-  --muted2: rgba(255, 255, 255, 0.54);
+  --border-light: #c2c3c7;
+  --border-dark: #000000;
 
-  --edge: rgba(255, 255, 255, 0.14);
-  --edge2: rgba(255, 255, 255, 0.22);
-
-  --accentEdge: rgba(160, 220, 255, 0.54);
-  --dangerEdge: rgba(255, 120, 150, 0.56);
-
-  --shadow: 0 10px 0 rgba(0, 0, 0, 0.3), 0 34px 72px rgba(0, 0, 0, 0.64);
-
-  --r: 14px;
-  --r2: 12px;
+  --shadow: 4px 4px 0px rgba(0, 0, 0, 0.6);
 }
 
 * {
   box-sizing: border-box;
+  image-rendering: pixelated; /* CRITICAL: Makes images crisp */
+  -webkit-font-smoothing: none; /* Turns off font blurring */
 }
 
 html,
 body {
   height: 100%;
   margin: 0;
-}
-
-body {
-  background: radial-gradient(
-      circle at 52% 18%,
-      rgba(80, 120, 255, 0.14) 0%,
-      rgba(0, 0, 0, 0) 42%
-    ),
-    radial-gradient(
-      circle at 72% 60%,
-      rgba(255, 120, 200, 0.1) 0%,
-      rgba(0, 0, 0, 0) 46%
-    ),
-    linear-gradient(180deg, var(--bg0), var(--bg1) 60%, #000);
+  background: var(--bg0);
   color: var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
-  font-size: 14px;
-  line-height: 1.35;
-}
-
-::selection {
-  background: rgba(160, 220, 255, 0.22);
-}
-
-.appRoot {
-  min-height: 100vh;
+  font-family: "VT323", monospace; /* Readable pixel font for body text */
+  font-size: 20px; /* Pixel fonts need to be slightly larger */
   overflow: hidden;
 }
 
-/* World */
-.world {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
+/* --- UI COMPONENTS --- */
+
+/* Retro Buttons */
+button {
+  font-family: "Press Start 2P", monospace; /* Header/Button font */
+  font-size: 10px;
+  text-transform: uppercase;
+  border: 2px solid var(--border-light);
+  border-right-color: var(--border-dark);
+  border-bottom-color: var(--border-dark);
+  background: var(--bg2);
+  color: var(--ink);
+  padding: 12px 14px;
+  cursor: pointer;
+  position: relative;
+  box-shadow: 2px 2px 0 #000;
+  margin: 2px;
 }
 
-.worldCanvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-  image-rendering: pixelated;
+button:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+  border: 2px solid var(--border-dark);
+  border-right-color: var(--border-light);
+  border-bottom-color: var(--border-light);
 }
 
-.worldVignette {
+button:disabled {
+  opacity: 0.5;
   pointer-events: none;
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    circle at 50% 30%,
-    rgba(0, 0, 0, 0) 0%,
-    rgba(0, 0, 0, 0.38) 55%,
-    rgba(0, 0, 0, 0.84) 100%
-  );
+  filter: grayscale(1);
 }
 
-/* Top bar */
+.btnPrimary {
+  background: var(--accent);
+  color: #000;
+  border-color: #fff;
+}
+.btnDanger {
+  background: var(--danger);
+  color: #fff;
+}
+.btnSecondary {
+  background: var(--bg1);
+}
+.btnGhost {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--muted);
+}
+.btnGhost:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Layout */
+.appRoot {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  grid-template-rows: 64px 1fr;
+  height: 100vh;
+  grid-template-areas: "top top" "world right";
+}
+
 .topBar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 30;
-  padding: 14px 16px;
+  grid-area: top;
+  background: var(--bg1);
+  border-bottom: 4px solid #000;
+  z-index: 10;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
 }
 
 .topBarInner {
-  margin: 0 auto;
-  max-width: 1220px;
+  width: 100%;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: calc(var(--r) + 6px);
-  border: 1px solid var(--edge);
-  background: var(--px-panel-tile, none) repeat,
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.08),
-      rgba(255, 255, 255, 0.03)
-    );
-  background-size: 32px 32px, cover;
-  box-shadow: var(--shadow);
+  align-items: center;
 }
 
 .brand {
@@ -118,527 +120,306 @@ body {
   align-items: center;
   gap: 12px;
 }
-
 .brandMark {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r2);
-  border: 1px solid var(--edge);
-  background: var(--px-panel-tile, none) repeat,
-    linear-gradient(
-      180deg,
-      rgba(160, 220, 255, 0.22),
-      rgba(255, 255, 255, 0.02)
-    );
-  background-size: 32px 32px, cover;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+  font-family: "Press Start 2P";
+  color: var(--gold);
+  font-size: 20px;
+  animation: float 3s infinite ease-in-out;
 }
-
 .brandTitle {
-  font-weight: 900;
-  font-size: 13px;
-  letter-spacing: 0.4px;
+  font-family: "Press Start 2P";
+  font-size: 14px;
+  color: var(--accent);
+  text-shadow: 2px 2px 0 #000;
 }
-
 .brandSub {
-  font-size: 12px;
+  font-size: 16px;
   color: var(--muted);
-  margin-top: 1px;
+  margin-top: 4px;
 }
 
 .topActions {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  gap: 10px;
 }
 
-/* Side panels */
+/* Panels */
 .leftHud {
   position: fixed;
-  left: 16px;
-  top: 92px;
-  z-index: 30;
-  width: 330px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 120px);
-  overflow: auto;
-  padding-bottom: 12px;
+  left: 20px;
+  top: 84px;
+  width: 280px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .rightPanel {
-  position: fixed;
-  right: 16px;
-  top: 92px;
-  z-index: 30;
-  width: 440px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 120px);
-  overflow: auto;
-  padding-bottom: 12px;
+  grid-area: right;
+  background: var(--bg1);
+  border-left: 4px solid #000;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  overflow: hidden;
 }
 
-/* Panels / cards */
+/* Card Container */
 .card {
-  border-radius: calc(var(--r) + 6px);
-  border: 1px solid var(--edge);
-  background: var(--px-panel-tile, none) repeat,
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.07),
-      rgba(255, 255, 255, 0.02)
-    );
-  background-size: 32px 32px, cover;
-  box-shadow: var(--shadow);
-  overflow: hidden;
-  position: relative;
+  background: var(--bg2);
+  border: 4px solid #000; /* Chunky border */
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
+  margin-bottom: 8px;
 }
 
 .cardHeader {
+  background: var(--bg0);
+  padding: 8px 12px;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 14px 8px 14px;
+  align-items: center;
+  border-bottom: 2px solid #000;
 }
 
 .cardTitle {
-  font-weight: 900;
-  font-size: 13px;
-  letter-spacing: 0.25px;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
+  font-family: "Press Start 2P";
+  font-size: 10px;
+  color: var(--gold);
 }
-
-.cardRight {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
 .cardBody {
-  padding: 0 14px 14px 14px;
-}
-
-/* Icons */
-.ico {
-  width: 18px;
-  height: 18px;
-  image-rendering: pixelated;
-  vertical-align: -3px;
-}
-
-.icoBig {
-  width: 20px;
-  height: 20px;
-  image-rendering: pixelated;
-}
-
-/* Pills */
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 999px;
-  border: 1px solid var(--edge);
-  background: rgba(0, 0, 0, 0.4);
-  padding: 6px 10px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.9);
-}
-
-/* Buttons */
-/* === BUTTON FIX: pixel-perfect, no blur === */
-
-.btn {
-  border: 0;
-  color: var(--ink);
-  border-radius: 10px;
-  padding: 7px 12px;
-  font-size: 13px;
-  cursor: pointer;
-  user-select: none;
-
-  transition: filter 0.12s ease, box-shadow 0.12s ease;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.65);
-
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 100% 100%;
-  image-rendering: pixelated;
-
-  transform: translateY(0); /* DO NOT SCALE */
-}
-
-.btn:active {
-  transform: translateY(1px);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
-  filter: brightness(0.95);
-}
-
-/* Prevent blur from accidental transforms */
-button,
-.btn,
-.btn * {
-  backface-visibility: hidden;
-  transform-style: flat;
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  filter: grayscale(0.2);
-}
-
-.btnPrimary {
-  background-image: var(--px-btn-primary, none);
-}
-.btnSecondary {
-  background-image: var(--px-btn-secondary, none);
-}
-.btnDanger {
-  background-image: var(--px-btn-danger, none);
-}
-.btnGhost {
-  background: transparent;
-  box-shadow: none;
-  text-shadow: none;
-  padding: 6px 8px;
-  opacity: 0.85;
-}
-.btnGhost:hover {
-  background: rgba(255, 255, 255, 0.05);
-  opacity: 1;
-}
-
-/* Stats */
-.grid2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.statBox {
-  border-radius: var(--r);
-  border: 1px solid var(--edge);
-  background: var(--px-panel-tile, none) repeat, rgba(0, 0, 0, 0.38);
-  background-size: 32px 32px;
   padding: 12px;
 }
 
-.statHeaderRow {
+/* Stats */
+.statBox {
+  background: rgba(0, 0, 0, 0.2);
+  border: 2px solid #000;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+.statLabel {
+  font-size: 16px;
+  color: var(--muted);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
+}
+.statValue {
+  font-family: "Press Start 2P";
+  font-size: 12px;
+  color: var(--ink);
+  margin: 6px 0;
+}
+.statValueSmall {
+  font-family: "Press Start 2P";
+  font-size: 10px;
+  color: var(--ink);
+}
+.statSub {
+  font-size: 14px;
+  color: var(--muted);
 }
 
-.statLabel {
-  font-size: 12px;
-  color: var(--muted);
-  display: inline-flex;
-  align-items: center;
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
-
-.statValue {
-  font-size: 20px;
-  font-weight: 900;
-  margin-top: 4px;
-}
-
-.statValueSmall {
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.statSub {
-  font-size: 12px;
-  color: var(--muted2);
-  margin-top: 6px;
-  line-height: 1.35;
-}
-
 .rowBetween {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-}
-
-/* Progress */
-.prog {
-  height: 10px;
-  border-radius: 999px;
-  border: 1px solid var(--edge);
-  background: rgba(255, 255, 255, 0.06);
-  overflow: hidden;
-  margin-top: 8px;
-}
-.progFill {
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    rgba(160, 220, 255, 0.65),
-    rgba(255, 160, 220, 0.5)
-  );
-  border-radius: 999px;
+  align-items: center;
 }
 
 /* Tabs */
 .tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-  background: rgba(0, 0, 0, 0.44);
-  border: 1px solid var(--edge);
-  border-radius: var(--r);
-  padding: 8px;
-  margin-bottom: 10px;
+  display: flex;
+  background: #000;
+  padding: 4px 4px 0 4px;
+  gap: 2px;
 }
-
 .tab {
-  border: 1px solid transparent;
-  border-radius: var(--r2);
-  background: transparent;
-  color: rgba(255, 255, 255, 0.86);
-  padding: 10px 10px;
-  cursor: pointer;
-  font-size: 13px;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55);
-}
-.tab:hover {
-  background: rgba(255, 255, 255, 0.06);
+  flex: 1;
+  background: var(--bg2);
+  border: none;
+  color: var(--muted);
+  font-family: "Press Start 2P";
+  font-size: 8px;
+  padding: 12px 4px;
+  margin: 0;
+  box-shadow: none;
+  border-top: 4px solid transparent;
 }
 .tabActive {
-  background: rgba(160, 220, 255, 0.16);
-  border-color: rgba(160, 220, 255, 0.28);
-  color: rgba(255, 255, 255, 0.97);
+  background: var(--bg1);
+  color: var(--accent);
+  border-top: 4px solid var(--accent);
+  margin-bottom: -4px;
+  position: relative;
+  z-index: 2;
 }
 .tabDisabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+  opacity: 0.3;
 }
 
-/* Text blocks */
-.smallText {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.82);
-  line-height: 1.45;
-}
-.tinyMuted {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.56);
-  margin-top: 8px;
-}
-
-/* Upgrade list */
+/* Items List */
 .list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 10px;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 4px;
 }
 .item {
-  border-radius: var(--r);
-  border: 1px solid var(--edge);
-  background: var(--px-panel-tile, none) repeat, rgba(0, 0, 0, 0.38);
-  background-size: 32px 32px;
-  padding: 12px;
+  background: var(--bg2);
+  border: 2px solid #000;
+  padding: 10px;
+}
+.item:hover {
+  border-color: var(--muted);
 }
 .itemTop {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  margin-bottom: 6px;
 }
 .itemName {
-  font-weight: 900;
-  font-size: 13px;
-  letter-spacing: 0.25px;
+  font-family: "Press Start 2P";
+  font-size: 10px;
+  color: var(--ink);
 }
 .itemDesc {
-  margin-top: 6px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.74);
-  line-height: 1.35;
+  font-size: 16px;
+  color: var(--muted);
+  margin-bottom: 4px;
+  line-height: 1.2;
 }
 .itemEffect {
-  margin-top: 8px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.58);
+  font-size: 15px;
+  color: var(--accent);
 }
 
-/* Codex */
-.codex {
-  padding-top: 6px;
-}
-.codexTitle {
-  font-weight: 900;
+/* Utilities */
+.pill {
+  background: #000;
+  color: #fff;
+  padding: 4px 6px;
+  font-family: "VT323";
   font-size: 14px;
-  margin-bottom: 8px;
+  border: 1px solid #444;
 }
-.codex p {
-  margin: 0 0 10px 0;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 13px;
-  line-height: 1.55;
+.ico {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
 }
-.codexBox {
-  border-radius: var(--r);
-  border: 1px solid var(--edge);
-  background: rgba(255, 255, 255, 0.06);
-  padding: 12px;
+
+.progress {
+  height: 12px;
+  background: #000;
+  border: 2px solid #444;
+  margin: 6px 0;
 }
-.codexBoxTitle {
-  font-weight: 900;
-  margin-bottom: 6px;
-  font-size: 13px;
-}
-.codexBox ul {
-  margin: 0;
-  padding-left: 18px;
-  color: rgba(255, 255, 255, 0.76);
-  font-size: 13px;
-  line-height: 1.45;
+.progFill {
+  height: 100%;
+  background: var(--accent);
 }
 
 /* Toast */
 .toast {
   position: fixed;
+  bottom: 20px;
   left: 50%;
-  bottom: 18px;
   transform: translateX(-50%);
-  z-index: 60;
-  padding: 12px 14px;
-  border-radius: var(--r);
-  border: 1px solid var(--edge);
-  background: var(--px-panel-tile, none) repeat, rgba(0, 0, 0, 0.8);
-  background-size: 32px 32px;
-  box-shadow: var(--shadow);
-  color: rgba(255, 255, 255, 0.94);
-  font-size: 13px;
+  background: var(--bg1);
+  border: 4px solid var(--ink);
+  color: var(--ink);
+  padding: 16px 24px;
+  font-family: "Press Start 2P";
+  font-size: 10px;
+  z-index: 999;
+  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.3s;
 }
 
-.fileInput {
-  width: 100%;
-  margin-top: 6px;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 13px;
+@keyframes slideUp {
+  from {
+    transform: translate(-50%, 20px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
 }
 
-/* Tutorial spotlight */
-.tutTarget {
-  position: relative;
-  z-index: 45;
-  box-shadow: 0 0 0 2px rgba(160, 220, 255, 0.22);
-  border-radius: var(--r);
-}
-
-.tutOverlay {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  pointer-events: none;
-}
-.tutSvg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-.tutPanel {
-  position: fixed;
-  left: 50%;
-  bottom: 22px;
-  transform: translateX(-50%);
-  width: min(640px, calc(100vw - 32px));
-  border-radius: calc(var(--r) + 10px);
-  border: 1px solid rgba(160, 220, 255, 0.26);
-  background: var(--px-panel-tile, none) repeat, rgba(8, 9, 14, 0.92);
-  background-size: 32px 32px;
-  box-shadow: 0 16px 60px rgba(0, 0, 0, 0.72);
-  padding: 18px 18px 16px 18px;
-  pointer-events: auto;
-  max-height: calc(100vh - 32px);
-  overflow: auto;
-}
-.tutHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-.tutTitle {
-  font-weight: 900;
-  font-size: 14px;
-  letter-spacing: 0.25px;
-}
-.tutProgress {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.74);
-}
-.tutBody {
-  margin-top: 10px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.86);
-  line-height: 1.55;
-}
-.tutActions {
-  margin-top: 14px;
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-/* Main menu */
+/* Menu */
 .menuOverlay {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.85);
   display: grid;
   place-items: center;
-  background: rgba(0, 0, 0, 0.68);
 }
-
 .menuCard {
-  width: min(560px, calc(100vw - 32px));
-  border-radius: calc(var(--r) + 10px);
-  border: 1px solid var(--edge);
-  background: var(--px-panel-tile, none) repeat, rgba(0, 0, 0, 0.78);
-  background-size: 32px 32px;
-  box-shadow: var(--shadow);
-  padding: 18px;
+  background: var(--bg1);
+  border: 4px solid var(--accent);
+  padding: 40px;
+  text-align: center;
+  width: 420px;
+  box-shadow: 10px 10px 0 #000;
 }
-
 .menuTitle {
-  font-weight: 900;
-  font-size: 18px;
-  letter-spacing: 0.4px;
+  font-family: "Press Start 2P";
+  font-size: 24px;
+  color: var(--accent);
+  margin-bottom: 20px;
+  text-shadow: 4px 4px 0 #000;
 }
 .menuSub {
-  margin-top: 6px;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 18px;
+  color: var(--muted);
+  margin-bottom: 32px;
 }
 .menuButtons {
-  margin-top: 14px;
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.menuHint {
-  margin-top: 12px;
-  color: rgba(255, 255, 255, 0.62);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.brandText {
   display: flex;
   flex-direction: column;
+  gap: 16px;
+}
+
+/* Tutorial Overlay */
+.tutOverlay {
+  pointer-events: none;
+}
+.tutSvg {
+  pointer-events: none;
+}
+.tutPanel {
+  background: var(--bg1);
+  border: 4px solid var(--gold);
+  padding: 16px;
+  box-shadow: 8px 8px 0 #000;
+  pointer-events: auto;
+}
+.tutTitle {
+  font-family: "Press Start 2P";
+  font-size: 12px;
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+.tutBody {
+  font-size: 18px;
+  line-height: 1.4;
+  margin-bottom: 16px;
 }
