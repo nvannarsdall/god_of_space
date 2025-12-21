@@ -531,7 +531,7 @@ export default function App() {
 
           <div className="statBox">
             <div className="rowBetween">
-              <div className="statLabel">Omens</div>
+              <div className="statLabel"><img className="ico" src="/assets/pixel/icon_omens.png" alt="" /> Omens</div>
               <div className="statValueSmall">{fmt(state.whispers)}</div>
             </div>
             <div className="statSub">
@@ -592,7 +592,7 @@ export default function App() {
 
           <div className="statBox">
             <div className="rowBetween">
-              <div className="statLabel">Reverence</div>
+              <div className="statLabel"><img className="ico" src="/assets/pixel/icon_reverence.png" alt="" /> Reverence</div>
               <div className="statValueSmall">{fmt(state.devotion)}</div>
             </div>
             <div className="statSub">
@@ -602,7 +602,7 @@ export default function App() {
 
           <div className="statBox">
             <div className="rowBetween">
-              <div className="statLabel">Authority</div>
+              <div className="statLabel"><img className="ico" src="/assets/pixel/icon_authority.png" alt="" /> Authority</div>
               <div className="statValueSmall">{fmt(state.power)}</div>
             </div>
             <div className="statSub">
