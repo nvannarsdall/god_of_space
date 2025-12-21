@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { clamp } from "../game/state";
+import React, { useEffect, useState } from "react";
 import { Button } from "../components/ui";
 
 function TutorialOverlay({
@@ -18,9 +17,8 @@ function TutorialOverlay({
     w: window.innerWidth,
     h: window.innerHeight,
   });
-  const [panelHeight, setPanelHeight] = useState(240);
-  const panelRef = useRef(null);
 
+  // Keep track of window size to recalculate positions on resize
   useEffect(() => {
     const onResize = () =>
       setViewport({ w: window.innerWidth, h: window.innerHeight });
@@ -28,58 +26,55 @@ function TutorialOverlay({
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // Calculate Holes (Spotlights)
   const pad = 12;
+  // Normalize inputs: rects array takes precedence, fallback to single rect
   const list =
     Array.isArray(rects) && rects.length ? rects : rect ? [rect] : [];
+
+  // Create safe rectangles for the SVG mask with padding
   const rs = list.filter(Boolean).map((rr) => ({
-    x: Math.max(0, rr.left - pad),
-    y: Math.max(0, rr.top - pad),
-    w: Math.max(0, rr.width + pad * 2),
-    h: Math.max(0, rr.height + pad * 2),
+    x: rr.left - pad,
+    y: rr.top - pad,
+    w: rr.width + pad * 2,
+    h: rr.height + pad * 2,
   }));
 
-  const r = rs.length ? rs[0] : null;
+  // Determine Safe Position (Top vs Bottom dock)
+  // Logic: If the MAIN target (first one) is in the top 60% of screen, dock text at bottom.
+  // Otherwise dock text at top. This prevents the text from covering the target.
+  const mainTarget = rs[0];
+  const isTargetHigh = mainTarget
+    ? mainTarget.y + mainTarget.h / 2 < viewport.h * 0.6
+    : true;
 
-  useEffect(() => {
-    if (!panelRef.current) return;
-    const box = panelRef.current.getBoundingClientRect();
-    if (box?.height) setPanelHeight(box.height);
-  }, [title, body, viewport.w, viewport.h]);
-
-  const panelStyle = useMemo(() => {
-    if (!r) {
-      return {
-        left: "50%",
-        bottom: "26px",
-        transform: "translateX(-50%)",
-      };
-    }
-
-    const panelWidth = Math.min(560, viewport.w - 32);
-    const spaceBelow = viewport.h - (r.y + r.h);
-    const placeBelow = spaceBelow >= panelHeight + 20;
-
-    const top = placeBelow
-      ? r.y + r.h + 16
-      : Math.max(16, r.y - panelHeight - 16);
-
-    return {
-      width: panelWidth,
-      left: clamp(
-        r.x + r.w / 2 - panelWidth / 2,
-        16,
-        viewport.w - panelWidth - 16
-      ),
-      top: clamp(top, 16, viewport.h - panelHeight - 16),
-      transform: "none",
-    };
-  }, [r, viewport, panelHeight]);
+  const panelStyle = {
+    position: "fixed",
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: "min(600px, 90vw)",
+    zIndex: 100, // Must be above the SVG mask
+    transition: "top 0.3s ease, bottom 0.3s ease",
+    // Docking Logic:
+    top: isTargetHigh ? "auto" : "100px",
+    bottom: isTargetHigh ? "50px" : "auto",
+  };
 
   return (
-    <div className="tutOverlay">
-      <svg className="tutSvg" width="100%" height="100%">
+    <div
+      className="tutOverlay"
+      style={{ position: "fixed", inset: 0, zIndex: 90, pointerEvents: "none" }}
+    >
+      {/* 1. DARK MASK WITH HOLES (SVG) */}
+      <svg
+        className="tutSvg"
+        width="100%"
+        height="100%"
+        style={{ position: "absolute", inset: 0 }}
+      >
         <defs>
           <mask id="holeMask">
+            {/* White base = transparent in mask, Black shapes = opaque/holes in mask */}
             <rect width="100%" height="100%" fill="white" />
             {rs.map((h, i) => (
               <rect
@@ -88,21 +83,22 @@ function TutorialOverlay({
                 y={h.y}
                 width={h.w}
                 height={h.h}
-                rx="18"
-                ry="18"
+                rx="12"
                 fill="black"
               />
             ))}
           </mask>
         </defs>
 
+        {/* The dim background layer */}
         <rect
           width="100%"
           height="100%"
-          fill="rgba(3,6,12,0.60)"
+          fill="rgba(5, 4, 10, 0.75)"
           mask="url(#holeMask)"
         />
 
+        {/* The glow rings around targets */}
         {rs.map((h, i) => (
           <rect
             key={i}
@@ -110,34 +106,84 @@ function TutorialOverlay({
             y={h.y}
             width={h.w}
             height={h.h}
-            rx="18"
-            ry="18"
+            rx="12"
             fill="transparent"
-            stroke={
-              i === 0 ? "rgba(160,220,255,0.8)" : "rgba(160,220,255,0.45)"
-            }
-            strokeWidth={i === 0 ? "2" : "1.6"}
+            stroke={i === 0 ? "#A0DCFF" : "rgba(160, 220, 255, 0.3)"}
+            strokeWidth={i === 0 ? "2" : "1"}
+            style={{
+              animation: i === 0 ? "tutPulse 2s infinite" : "none",
+            }}
           />
         ))}
       </svg>
 
-      <div ref={panelRef} className="tutPanel" style={panelStyle}>
-        <div className="tutHeader">
-          <div className="tutTitle">{title}</div>
-          <div className="tutProgress">
+      {/* 2. TEXT PANEL */}
+      <div
+        className="tutPanel"
+        style={{ ...panelStyle, pointerEvents: "auto" }}
+      >
+        <div
+          className="tutHeader"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: 10,
+          }}
+        >
+          <div
+            className="tutTitle"
+            style={{ fontWeight: 900, color: "#A0DCFF" }}
+          >
+            {title}
+          </div>
+          <div className="tutProgress" style={{ opacity: 0.6, fontSize: 12 }}>
             Step {step} of {total}
           </div>
         </div>
 
-        <div className="tutBody">{body}</div>
+        <div className="tutBody" style={{ lineHeight: 1.5, marginBottom: 16 }}>
+          {body}
+        </div>
 
-        <div className="tutActions">
-          <Button variant="ghost" onClick={onSkip}>
-            Skip tutorial
+        <div
+          className="tutActions"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Button
+            variant="ghost"
+            onClick={onSkip}
+            style={{ fontSize: 12, opacity: 0.7 }}
+          >
+            End Tutorial
           </Button>
-          {showNext && <Button onClick={onNext}>{nextLabel}</Button>}
+
+          {/* Only show Next if the task is done, OR if it's purely informational */}
+          {showNext ? (
+            <Button onClick={onNext} variant="primary">
+              {nextLabel}
+            </Button>
+          ) : (
+            <div
+              style={{ fontSize: 12, color: "#A0DCFF", fontStyle: "italic" }}
+            >
+              Complete task to proceed...
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Self-contained styles for the pulse animation */}
+      <style>{`
+        @keyframes tutPulse {
+            0% { stroke-opacity: 0.6; box-shadow: 0 0 0 0 rgba(160, 220, 255, 0.4); }
+            50% { stroke-opacity: 1; box-shadow: 0 0 0 10px rgba(160, 220, 255, 0); }
+            100% { stroke-opacity: 0.6; box-shadow: 0 0 0 0 rgba(160, 220, 255, 0); }
+        }
+      `}</style>
     </div>
   );
 }

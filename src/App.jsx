@@ -15,310 +15,239 @@ import {
 } from "./game/state";
 import TutorialOverlay from "./tutorial/TutorialOverlay";
 import { buildTutorialSteps } from "./tutorial/tutorialData";
-function IntroCutscene({ onDone }) {
-  const [phase, setPhase] = useState("idle"); // 'idle' -> 'playing' -> 'done'
-  const canvasRef = React.useRef(null);
-  const rafRef = React.useRef(null);
-  const startTsRef = React.useRef(null);
-  const starsRef = React.useRef([]);
-  const [muted, setMuted] = React.useState(false);
 
-  const audioRef = React.useRef({
-    ctx: null,
-    master: null,
+/* --- IMPROVED CINEMATIC INTRO --- */
+function IntroCutscene({ onDone }) {
+  const [phase, setPhase] = useState("idle"); // idle -> accelerating -> flash -> done
+  const canvasRef = useRef(null);
+  const rafRef = useRef(null);
+
+  // Animation State (Refs for performance in render loop)
+  const animState = useRef({
+    speed: 0.2,
+    warpFactor: 0,
+    startTime: 0,
+    textAlpha: 0,
+    textIndex: 0,
+    flashOpacity: 0,
   });
 
-  function ensureAudio() {
-    if (audioRef.current.ctx) return audioRef.current;
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const master = ctx.createGain();
-    master.gain.value = 0.8;
-    master.connect(ctx.destination);
-    audioRef.current.ctx = ctx;
-    audioRef.current.master = master;
-    return audioRef.current;
-  }
+  const messages = [
+    "In the beginning...",
+    "The void was silent.",
+    "But you were listening.",
+    "GOD OF SPACE",
+  ];
 
-  function playWhoosh() {
-    if (muted) return;
-    const { ctx, master } = ensureAudio();
-    const now = ctx.currentTime;
+  const starsRef = useRef([]);
 
-    // noise buffer
-    const bufferSize = Math.floor(ctx.sampleRate * 0.35);
-    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++)
-      data[i] = (Math.random() * 2 - 1) * 0.8;
-
-    const noise = ctx.createBufferSource();
-    noise.buffer = buffer;
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = "bandpass";
-    filter.frequency.setValueAtTime(500, now);
-    filter.frequency.exponentialRampToValueAtTime(2200, now + 0.25);
-
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.9, now + 0.06);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
-
-    noise.connect(filter);
-    filter.connect(gain);
-    gain.connect(master);
-
-    noise.start(now);
-    noise.stop(now + 0.36);
-  }
-
-  function playChime() {
-    if (muted) return;
-    const { ctx, master } = ensureAudio();
-    const now = ctx.currentTime;
-
-    const freqs = [440, 660, 880];
-    freqs.forEach((f, idx) => {
-      const osc = ctx.createOscillator();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(f, now);
-
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0.0001, now + idx * 0.02);
-      g.gain.exponentialRampToValueAtTime(0.35, now + 0.03 + idx * 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.45 + idx * 0.02);
-
-      osc.connect(g);
-      g.connect(master);
-
-      osc.start(now + idx * 0.02);
-      osc.stop(now + 0.6);
-    });
-  }
-
-  function initStars(w, h) {
-    const n = 220;
-    const stars = [];
-    for (let i = 0; i < n; i++) {
-      stars.push({
-        x: Math.random() * w,
-        y: Math.random() * h,
-        z: Math.random(), // depth
-        s: 0.4 + Math.random() * 1.6, // size
-        v: 0.15 + Math.random() * 0.85, // speed factor
-      });
-    }
-    starsRef.current = stars;
-  }
-
-  React.useEffect(() => {
+  // Initialize Starfield
+  useEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
 
-    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+    // Fill screen
     const resize = () => {
-      const rect = c.getBoundingClientRect();
-      c.width = Math.floor(rect.width * dpr);
-      c.height = Math.floor(rect.height * dpr);
-      const ctx = c.getContext("2d");
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      initStars(c.width, c.height);
+      c.width = window.innerWidth;
+      c.height = window.innerHeight;
     };
-
     resize();
     window.addEventListener("resize", resize);
+
+    // Create Stars
+    starsRef.current = Array.from({ length: 400 }, () => ({
+      x: Math.random() * c.width,
+      y: Math.random() * c.height,
+      z: Math.random() * 2 + 0.1, // Depth
+      oa: Math.random(), // Original Alpha
+    }));
+
     return () => window.removeEventListener("resize", resize);
   }, []);
 
-  React.useEffect(() => {
-    if (phase !== "playing") return;
-
+  // Animation Loop
+  useEffect(() => {
     const c = canvasRef.current;
+    if (!c) return;
     const ctx = c.getContext("2d");
 
-    const tick = (ts) => {
-      if (!startTsRef.current) startTsRef.current = ts;
-      const t = (ts - startTsRef.current) / 1000;
+    const render = (time) => {
+      const state = animState.current;
+      if (!state.startTime) state.startTime = time;
+      const progress = time - state.startTime;
 
-      const w = c.width,
-        h = c.height;
+      const w = c.width;
+      const h = c.height;
 
-      // background
-      ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "black";
+      // 1. CLEAR
+      ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, w, h);
 
-      // stars
-      const stars = starsRef.current;
-      for (let i = 0; i < stars.length; i++) {
-        const st = stars[i];
-        st.y += (0.35 + st.v) * (2.0 - st.z) * (w * 0.00045);
+      // 2. UPDATE PHYSICS BASED ON PHASE
+      if (phase === "accelerating") {
+        // Accelerate speed and warp stretching
+        state.speed = Math.min(state.speed * 1.05, 50);
+        state.warpFactor = Math.min(state.warpFactor + 0.5, 40);
 
-        if (st.y > h + 10) {
-          st.y = -10;
-          st.x = Math.random() * w;
-          st.z = Math.random();
-          st.s = 0.4 + Math.random() * 1.6;
-          st.v = 0.15 + Math.random() * 0.85;
+        // Text Timing Logic
+        if (state.speed > 40 && progress > 5000) {
+          // End sequence trigger
+          setPhase("flash");
+        }
+      }
+
+      // 3. DRAW STARS
+      ctx.fillStyle = "#FFFFFF";
+      starsRef.current.forEach((star) => {
+        // Move star
+        star.y += star.z * state.speed;
+
+        // Reset if off screen
+        if (star.y > h) {
+          star.y = -100;
+          star.x = Math.random() * w;
         }
 
-        const alpha = 0.25 + (1 - st.z) * 0.75;
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = "white";
-        ctx.fillRect(st.x, st.y, st.s * (1.2 - st.z), st.s * (1.2 - st.z));
+        const x = star.x;
+        const y = star.y;
+        const s = Math.max(0.8, star.z * (state.speed > 2 ? 0.5 : 1.5));
+
+        // Warp Effect: Draw lines instead of dots when fast
+        if (state.warpFactor > 1) {
+          ctx.globalAlpha = Math.min(1, 0.3 * state.warpFactor * star.oa);
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x, y - state.warpFactor * star.z * 5);
+          ctx.strokeStyle = `rgba(255, 255, 255, ${star.oa})`;
+          ctx.lineWidth = s;
+          ctx.stroke();
+        } else {
+          // Normal Dot
+          ctx.globalAlpha = star.oa;
+          ctx.fillRect(x, y, s, s);
+        }
+      });
+
+      // 4. DRAW TEXT (Cinematic Typewriter)
+      if (phase === "accelerating") {
+        const msgDuration = 1800; // ms per message
+        const cycle = Math.floor(progress / msgDuration);
+        const localT = (progress % msgDuration) / msgDuration;
+
+        if (cycle < messages.length) {
+          // Fade in/out logic
+          const alpha =
+            localT < 0.2 ? localT * 5 : localT > 0.8 ? (1 - localT) * 5 : 1;
+
+          ctx.globalAlpha = alpha;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+
+          // Last message (Title) is bigger
+          if (cycle === messages.length - 1) {
+            ctx.font = "900 64px monospace";
+            ctx.fillStyle = "#A0DCFF";
+            // Jiggle effect for title
+            const jiggle = Math.random() * 2;
+            ctx.fillText(messages[cycle], w / 2 + jiggle, h / 2);
+          } else {
+            ctx.font = "300 24px monospace";
+            ctx.fillStyle = "#FFF";
+            ctx.fillText(messages[cycle], w / 2, h / 2);
+          }
+        }
       }
-      ctx.globalAlpha = 1;
 
-      // title fades
-      const fadeIn = Math.min(1, Math.max(0, (t - 0.6) / 1.2));
-      const hold = t < 4.2 ? 1 : Math.max(0, 1 - (t - 4.2) / 0.8);
+      // 5. FLASH BANG (Transition to Game)
+      if (phase === "flash") {
+        state.flashOpacity += 0.05;
+        ctx.fillStyle = `rgba(255, 255, 255, ${state.flashOpacity})`;
+        ctx.fillRect(0, 0, w, h);
 
-      const a = fadeIn * hold;
-
-      ctx.save();
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-
-      ctx.globalAlpha = a;
-      ctx.fillStyle = "white";
-      ctx.font = `${Math.floor(
-        w * 0.06
-      )}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-      ctx.fillText("GOD OF SPACE", w / 2, h * 0.45);
-
-      ctx.globalAlpha = a * 0.9;
-      ctx.fillStyle = "rgba(255,255,255,0.9)";
-      ctx.font = `${Math.floor(
-        w * 0.022
-      )}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-      ctx.fillText("From starlight… to reverence.", w / 2, h * 0.53);
-
-      ctx.restore();
-
-      // auto-end
-      if (t >= 5.2) {
-        setPhase("done");
-        onDone?.();
-        return;
+        if (state.flashOpacity >= 1.5) {
+          onDone(); // Trigger parent to unmount
+          return; // Stop loop
+        }
       }
 
-      rafRef.current = requestAnimationFrame(tick);
+      rafRef.current = requestAnimationFrame(render);
     };
 
-    rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    };
+    rafRef.current = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(rafRef.current);
   }, [phase, onDone]);
 
-  React.useEffect(() => {
-    if (phase === "done") {
-      // stop audio context politely (optional)
-      return;
-    }
-  }, [phase]);
-
-  const begin = async () => {
-    setPhase("playing");
-    // unlock audio on gesture
-    const { ctx } = ensureAudio();
-    if (ctx.state === "suspended") {
-      try {
-        await ctx.resume();
-      } catch {}
-    }
-    playWhoosh();
-    setTimeout(() => playChime(), 650);
-  };
-
-  const skip = () => {
-    setPhase("done");
-    onDone?.();
+  const startSequence = () => {
+    animState.current.startTime = performance.now();
+    setPhase("accelerating");
   };
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        background: "black",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
+      style={{ position: "fixed", inset: 0, zIndex: 99999, background: "#000" }}
     >
       <canvas
         ref={canvasRef}
-        style={{ width: "100%", height: "100%", display: "block" }}
+        style={{ display: "block", width: "100%", height: "100%" }}
       />
-
-      <div
-        style={{
-          position: "absolute",
-          left: 16,
-          top: 16,
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-        }}
-      >
-        <button onClick={() => setMuted((m) => !m)} style={btnStyle}>
-          {muted ? "Unmute" : "Mute"}
-        </button>
-      </div>
-
-      <div
-        style={{
-          position: "absolute",
-          right: 16,
-          top: 16,
-          display: "flex",
-          gap: 8,
-        }}
-      >
-        <button onClick={skip} style={btnStyle}>
-          Skip
-        </button>
-      </div>
 
       {phase === "idle" && (
         <div
           style={{
             position: "absolute",
-            bottom: 42,
-            left: 0,
-            right: 0,
+            inset: 0,
             display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
             justifyContent: "center",
+            zIndex: 10,
           }}
         >
-          <button
-            onClick={begin}
-            style={{ ...btnStyle, padding: "12px 18px", fontSize: 16 }}
+          <h1
+            style={{
+              color: "white",
+              fontFamily: "monospace",
+              fontSize: "14px",
+              opacity: 0.7,
+              marginBottom: "20px",
+            }}
           >
-            Begin
+            SIMULATION READY
+          </h1>
+          <button
+            className="btn btnPrimary"
+            style={{
+              padding: "16px 32px",
+              fontSize: "18px",
+              letterSpacing: "2px",
+              border: "1px solid rgba(255,255,255,0.5)",
+              background: "rgba(0,0,0,0.8)",
+            }}
+            onClick={startSequence}
+          >
+            AWAKEN
           </button>
         </div>
       )}
+
+      <div style={{ position: "absolute", bottom: 20, right: 20, zIndex: 20 }}>
+        <button
+          className="btn btnGhost"
+          style={{ opacity: 0.5, fontSize: "12px" }}
+          onClick={onDone}
+        >
+          SKIP SEQUENCE
+        </button>
+      </div>
     </div>
   );
 }
 
-const btnStyle = {
-  background: "rgba(255,255,255,0.12)",
-  border: "1px solid rgba(255,255,255,0.22)",
-  color: "white",
-  borderRadius: 10,
-  padding: "8px 12px",
-  cursor: "pointer",
-  fontFamily:
-    "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial",
-};
-
+/* --- MAIN APP --- */
 export default function App() {
   const [showIntro, setShowIntro] = useState(() => {
+    // Check if user has seen intro.
+    // DEBUG: Change !== "1" to === "1" if you want to force it to show for testing
     return localStorage.getItem("gos_intro_seen") !== "1";
   });
 
@@ -779,6 +708,20 @@ export default function App() {
     tutorialOn && tutorialStepData?.targets
       ? tutorialStepData.targets.map((fn) => fn()).filter(Boolean)
       : null;
+
+  // --- RENDER ---
+
+  // 1. INTRO CHECK: If intro is showing, Render that INSTEAD of the app
+  if (showIntro) {
+    return (
+      <IntroCutscene
+        onDone={() => {
+          setShowIntro(false);
+          localStorage.setItem("gos_intro_seen", "1");
+        }}
+      />
+    );
+  }
 
   return (
     <div className="appRoot">
@@ -1390,8 +1333,8 @@ export default function App() {
       {/* Spotlight Tutorial */}
       {tutorialOn && tutorialStepData && (
         <TutorialOverlay
-          rect={tutorialRect}
-          rects={tutorialRects}
+          rect={tutorialStepData.target?.() || null}
+          rects={tutorialStepData.targets?.map((f) => f())}
           title={tutorialStepData.title}
           body={tutorialStepData.body}
           step={tutorialIndex + 1}
