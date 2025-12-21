@@ -41,7 +41,7 @@ export default function App() {
   const skyTabRef = useRef(null);
 
   const tab = state.ui.tab;
-const awakened = state.unlocked.awakened;
+  const awakened = state.unlocked.awakened;
 
   const tutorialOn = Boolean(
     state.ui?.tutorialActive && state.ui?.screen === "tutorial"
@@ -82,12 +82,8 @@ const awakened = state.unlocked.awakened;
   const isVillageListStep = tutorialOn
     ? Boolean(tutorialAllows.villageUpgrades)
     : true;
-  const isConvertStep = tutorialOn
-    ? Boolean(tutorialAllows.convert)
-    : true;
-  const isSkyTabStep = tutorialOn
-    ? Boolean(tutorialAllows.skyTab)
-    : true;
+  const isConvertStep = tutorialOn ? Boolean(tutorialAllows.convert) : true;
+  const isSkyTabStep = tutorialOn ? Boolean(tutorialAllows.skyTab) : true;
   const isSkyUpgradeStep = tutorialOn
     ? Boolean(tutorialAllows.skyUpgrades)
     : true;
@@ -255,7 +251,6 @@ const awakened = state.unlocked.awakened;
     showToast("A Seeker enters the dusk.");
   };
 
-   codex/refactor-app.js-into-multiple-files-ivkzpn
   const spendOmens = () => {
     setState((s0) => {
       const s = migrateState(s0);
@@ -271,8 +266,6 @@ const awakened = state.unlocked.awakened;
     showToast("Omens fade into Reverence.");
   };
 
-
- main
   const convert = () => {
     setState((s0) => {
       const s = migrateState(s0);
@@ -447,10 +440,8 @@ const awakened = state.unlocked.awakened;
     (state.power || 0) > 0 ||
     (state.village?.huts || 0) > 0 ||
     (state.sky?.starsong || 0) > 0;
-codex/refactor-app.js-into-multiple-files-ivkzpn
-  const omenSpend = Math.min(10, state.whispers);
 
-main
+  const omenSpend = Math.min(10, state.whispers);
 
   return (
     <div className="appRoot">
@@ -538,14 +529,10 @@ main
               <div className="statLabel">Omens</div>
               <div className="statValueSmall">{fmt(state.whispers)}</div>
             </div>
-
- codex/refactor-app.js-into-multiple-files-ivkzpn
             <div className="statSub">
               Earned by clicking before you awaken.
               {awakened ? " Spend leftovers for a small Reverence burst." : ""}
             </div>
-
-            <div className="statSub">Earned by clicking before you awaken.</div> main
 
             {!awakened && (
               <>
@@ -558,7 +545,9 @@ main
 
                 <div
                   ref={seekerBtnRef}
-                  className={tutorialStepData?.id === "seeker" ? "tutTarget" : ""}
+                  className={
+                    tutorialStepData?.id === "seeker" ? "tutTarget" : ""
+                  }
                   style={{ marginTop: 8 }}
                 >
                   <Button
@@ -570,7 +559,7 @@ main
                 </div>
               </>
             )}
- codex/refactor-app.js-into-multiple-files-ivkzpn
+
             {awakened && state.whispers > 0 && (
               <div style={{ marginTop: 8 }}>
                 <Button variant="secondary" onClick={spendOmens}>
@@ -578,7 +567,6 @@ main
                 </Button>
               </div>
             )}
- main
           </div>
 
           <div className="statBox">
@@ -607,7 +595,11 @@ main
               <Button
                 variant="secondary"
                 onClick={convert}
-                disabled={!isConvertStep || !state.unlocked.convert || state.devotion < 10}
+                disabled={
+                  !isConvertStep ||
+                  !state.unlocked.convert ||
+                  state.devotion < 10
+                }
                 title={
                   !isConvertStep
                     ? "Tutorial: conversion comes later"
@@ -786,7 +778,9 @@ main
               className={`tab ${tab === "village" ? "tabActive" : ""} ${
                 tutorialOn && !isVillageListStep ? "tabDisabled" : ""
               }`}
-              onClick={() => !tutorialOn || isVillageListStep ? setTab("village") : null}
+              onClick={() =>
+                !tutorialOn || isVillageListStep ? setTab("village") : null
+              }
             >
               Village
             </button>
@@ -813,6 +807,7 @@ main
                 tutorialOn ? "tabDisabled" : ""
               }`}
               onClick={() => !tutorialOn && setTab("codex")}
+              title={tutorialOn ? "Tutorial: Codex disabled" : "Open Codex"}
             >
               Codex
             </button>
@@ -864,7 +859,10 @@ main
                           <div className="smallText">
                             Cost: <b>{fmt(cost)}</b> Reverence
                           </div>
-                          <Button disabled={!can} onClick={() => buy(u, "village")}>
+                          <Button
+                            disabled={!can}
+                            onClick={() => buy(u, "village")}
+                          >
                             Buy
                           </Button>
                         </div>
