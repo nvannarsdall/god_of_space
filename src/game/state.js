@@ -84,7 +84,6 @@ function saveState(s) {
 
 function migrateState(s) {
   const next = JSON.parse(JSON.stringify(s));
-  const allowedTabs = ["village", "sky", "codex"];
 
   // critical bug fix: if you have followers, you're awakened
   if (next.followers >= 1) next.unlocked.awakened = true;
@@ -124,9 +123,6 @@ function migrateState(s) {
     },
     next.ui || {}
   );
-  if (!allowedTabs.includes(next.ui.tab)) {
-    next.ui.tab = "village";
-  }
   next.settings = Object.assign(
     {
       autosave: true,
