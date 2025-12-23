@@ -22,6 +22,15 @@ function IntroCutscene({ onDone }) {
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
   const GOD_NAME = "Astrael";
+  const TIMING = {
+    flashStart: 3.0,
+    flashEnd: 4.6,
+    darkStart: 4.2,
+    darkEnd: 8.5,
+    vanishStart: 8.5,
+    vanishEnd: 14.5,
+    ctaStart: 15.5,
+  };
 
   const anim = useRef({
     start: 0,
@@ -55,9 +64,9 @@ function IntroCutscene({ onDone }) {
       if (phaseNow !== phase) {
         setPhase(phaseNow);
       }
-      ctx.restore();
 
       if (!anim.current.seeded) {
+        const vanishWindow = TIMING.vanishEnd - TIMING.vanishStart;
         anim.current.seeded = true;
         anim.current.stars = Array.from({ length: 90 }, () => ({
           x: Math.random() * W,
@@ -76,11 +85,6 @@ function IntroCutscene({ onDone }) {
           fadeDur: 1.4,
         };
       }
-      ctx.lineTo(W, H * 0.48);
-      ctx.lineTo(0, H * 0.48);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
 
       const flashStart = 2.0;
       const flashEnd = 3.2;
@@ -145,6 +149,15 @@ function IntroCutscene({ onDone }) {
 
       // Horizon layers
       const groundY = H * 0.72;
+      if (dayBlend > 0.05) {
+        const haze = ctx.createLinearGradient(0, groundY - 40, 0, groundY + 20);
+        haze.addColorStop(0, `rgba(255, 215, 175, ${0.2 * dayBlend})`);
+        haze.addColorStop(1, "rgba(255, 215, 175, 0)");
+        ctx.save();
+        ctx.fillStyle = haze;
+        ctx.fillRect(0, groundY - 50, W, 60);
+        ctx.restore();
+      }
       ctx.fillStyle = "#121423";
       ctx.beginPath();
       ctx.moveTo(0, groundY);
@@ -160,24 +173,13 @@ function IntroCutscene({ onDone }) {
 
       ctx.fillStyle = "#0b0d18";
       pixelRect(0, groundY, W, H - groundY, "#0b0d18");
-
-      // Sigil core
-      ctx.save();
-      const pulse = 1 + 0.05 * Math.sin(t * 2.4);
-      const coreX = W / 2;
-      const coreY = H * 0.5;
-      ctx.translate(coreX, coreY);
-      ctx.scale(pulse, pulse);
-      ctx.globalAlpha = 0.7 + 0.3 * emberBlend;
-      ctx.strokeStyle = `rgba(255, 210, 160, ${0.6 + 0.4 * emberBlend})`;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, 26, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, 0, 40, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
+      if (darkBlend > 0.3) {
+        ctx.save();
+        ctx.globalAlpha = 0.25 * darkBlend;
+        ctx.fillStyle = "#05040a";
+        ctx.fillRect(0, 0, W, H);
+        ctx.restore();
+      }
 
       // Embers rising
       if (emberBlend > 0) {
@@ -259,7 +261,7 @@ function IntroCutscene({ onDone }) {
             style={{ fontSize: "16px", padding: "24px" }}
             onClick={onDone}
           >
-            REKINDLE ASTRAEL
+            ENTER THE DUSK
           </button>
         </div>
       )}
