@@ -46,11 +46,8 @@ function compute(s) {
   const omenClickGain =
     (1 + 0.06 * festivals + 0.02 * shrines) * (0.9 + 0.1 * globalMul);
 
-  let convertEff = 0.02;
-  convertEff *= 1 + temples * 0.02;
-  convertEff *= 1 + orbits * 0.07;
-
   const veil = clamp(1 - starsong * 0.09, 0.08, 1);
+  const starlightBonus = 1 + orbits * 0.08;
   const telescopeBonus = 1 + telescope * 0.12;
 
   // timed buff: Portent (simple, readable, non-convoluted)
@@ -65,8 +62,8 @@ function compute(s) {
     devotionRate,
     omenRate,
     omenClickGain,
-    convertEff,
     veil,
+    starlightBonus,
     telescopeBonus,
     globalMul,
     portentActive,

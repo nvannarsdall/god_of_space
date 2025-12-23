@@ -103,8 +103,9 @@ function migrateState(s) {
   // unlock convert once temples exist
   if ((next.village?.temples || 0) >= 1) next.unlocked.convert = true;
 
-  // unlock sky once you have authority or sky upgrades
-  if (next.power > 0 || (next.sky?.starsong || 0) > 0) next.unlocked.sky = true;
+  // unlock sky once temples are raised or you have sky upgrades
+  if ((next.village?.temples || 0) > 0 || (next.sky?.starsong || 0) > 0)
+    next.unlocked.sky = true;
 
   // sanity
   next.followers = Math.max(0, next.followers);
