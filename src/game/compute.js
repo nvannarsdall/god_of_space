@@ -14,29 +14,24 @@ function compute(s) {
   const transcend = s.sky.transcend || 0;
   const crown = s.sky.crown || 0;
 
-  // === FOLLOWER CAP ===
   let cap = 12 + huts * 6 + council * 25;
   cap *= 1 + transcend * 0.08;
 
-  // === FOLLOWER GROWTH ===
   const growthAdd = huts >= 1 ? 0.07 + huts * 0.07 + farms * 0.11 : 0;
   const pressure = cap <= 0 ? 1 : clamp(1 - s.followers / cap, 0, 1);
   let followerRate =
     s.unlocked.awakened && huts >= 1 ? growthAdd * (0.2 + 0.8 * pressure) : 0;
 
-  // === PROSPERITY (NEW ACTIVE LOOP) ===
   const prosperityRate = s.unlocked.awakened
     ? 0.02 * s.followers + 0.05 * temples + 0.04 * festivals
     : 0;
 
-  // === DEVOTION PER FOLLOWER ===
   let devotionPerFollower = 0.55;
   devotionPerFollower *= 1 + farms * 0.02;
   devotionPerFollower *= 1 + temples * 0.08;
   devotionPerFollower *= 1 + crown * 0.05;
 
-  // Prosperity feeds devotion (Divine Caretaker loop)
-  devotionPerFollower *= 1 + clamp(s.village.prosperity / 100, 0, 2);
+  devotionPerFollower *= 1 + clamp((s.village?.prosperity || 0) / 100, 0, 2);
 
   const surgeChance = clamp(festivals * 0.03, 0, 0.45);
   const surgeMult = 1 + festivals * 0.1;
@@ -47,7 +42,6 @@ function compute(s) {
     ? s.followers * devotionPerFollower * surgeEV * globalMul
     : 0;
 
-  // === OMENS ===
   const omenRate = s.unlocked.awakened
     ? (0.05 * shrines + 0.01 * festivals) * globalMul
     : 0;
@@ -58,7 +52,6 @@ function compute(s) {
   const starlightBonus = 1 + orbits * 0.08;
   const telescopeBonus = 1 + telescope * 0.12;
 
-  // === PORTENT BUFF ===
   const portentActive = (s.buffs?.portentUntil || 0) > (s.t || 0);
   const portentMul = portentActive ? 1.45 : 1;
   followerRate *= portentMul;

@@ -380,6 +380,7 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
 
       const intensity = clamp(settings.lightingIntensity ?? 0.85, 0, 1);
       const bloomEnabled = settings.bloomEnabled !== false;
+      const prosperityGlow = clamp((st?.village?.prosperity || 0) / 120, 0, 1);
 
       const {
         ctx: lctx,
@@ -399,7 +400,11 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       const phase = ((st.t || 0) / 180) % 1; // ~3 min full cycle
       const nightPulse = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2);
       const baseDark = isSkyMode ? 0.1 : 0.38;
-      const dark = clamp(baseDark + nightPulse * 0.22 * intensity, 0, 0.85);
+      const dark = clamp(
+        baseDark + nightPulse * 0.22 * intensity - prosperityGlow * 0.14,
+        0,
+        0.85
+      );
 
       lctx.fillStyle = `rgba(0,0,0,${dark})`;
       lctx.fillRect(0, 0, W, H);
@@ -467,7 +472,8 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         const f = flicker(i);
         cutLight(lctx, L.x, L.y, L.r * f, clamp(L.s, 0, 1));
         if (bloomEnabled && L.bloom) {
-          addBloom(tctx, L.x, L.y, L.bloom.r * f, L.bloom.color, L.bloom.a);
+          const boostedA = clamp(L.bloom.a + prosperityGlow * 0.05, 0, 0.22);
+          addBloom(tctx, L.x, L.y, L.bloom.r * f, L.bloom.color, boostedA);
         }
       });
 
@@ -617,7 +623,6 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         const temples = st.village.temples || 0;
 
         const lit = st.devotion > 0;
-        const prosperityGlow = clamp((st.village?.prosperity || 0) / 100, 0, 1);
         // Main Hut (Y + 4 to sit on ground)
         drawHouse(W * 0.26, groundY + 6, 2.4, lit);
 

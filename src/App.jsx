@@ -473,13 +473,13 @@ export default function App() {
           ...s,
           t: s.t + 1,
           followers: Math.min(c.cap, s.followers + c.followerRate),
-          village: {
-            ...s.village,
-            prosperity: s.village.prosperity + (c.prosperityRate || 0),
-          },
           devotion: s.devotion + c.devotionRate,
           whispers: s.whispers + (c.omenRate || 0),
           stardust: s.stardust,
+          village: {
+            ...s.village,
+            prosperity: (s.village?.prosperity || 0) + (c.prosperityRate || 0),
+          },
         });
       });
     }, step);
@@ -829,6 +829,26 @@ export default function App() {
                 <div className="statLabel">Veil</div>
                 <div className="statValue">{veilPct}%</div>
                 <div className="statSub">Lower is better</div>
+              </div>
+            </div>
+            <div className="statBox">
+              <div className="rowBetween">
+                <div className="statLabel">
+                  <span
+                    className="ico"
+                    style={{ display: "inline-block", width: 14 }}
+                  >
+                    ✧
+                  </span>{" "}
+                  Prosperity
+                </div>
+                <div className="statValueSmall">
+                  {fmt(state.village?.prosperity || 0)}
+                </div>
+              </div>
+              <div className="statSub">
+                Rate: {fmt(computed.prosperityRate || 0)}/s • Boosts Reverence
+                yield
               </div>
             </div>
             <div className="statBox">
