@@ -178,6 +178,18 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       }
     };
 
+    const drawShadow = (x, y, rx, ry, alpha = 0.35) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "#050509";
+      ctx.translate(x, y);
+      ctx.scale(rx, ry);
+      ctx.beginPath();
+      ctx.arc(0, 0, 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+
     const drawHouse = (x, y, scale = 2.0, lit = true) => {
       const palette = lit
         ? {
