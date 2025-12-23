@@ -432,6 +432,43 @@ export default function App() {
 
   // Audio & Refs
   const audioRef = useRef(null);
+
+  // ---- Audio helpers ----
+  const playMusic = (track) => {
+    if (!audioRef.current) return;
+    const a = audioRef.current;
+    a.src = `/audio/${track}.mp3`;
+    a.loop = true;
+    a.volume = 0.7;
+    a.play().catch(() => {});
+  };
+
+  const fadeToMusic = (track) => {
+    if (!audioRef.current) return;
+    const a = audioRef.current;
+    let v = a.volume;
+    const id = setInterval(() => {
+      v -= 0.05;
+      if (v <= 0) {
+        clearInterval(id);
+        a.pause();
+        playMusic(track);
+      } else {
+        a.volume = v;
+      }
+    }, 40);
+  };
+
+  // ---- Start intro music on first user interaction ----
+  useEffect(() => {
+    const start = () => {
+      playMusic("god_of_space_theme");
+      window.removeEventListener("pointerdown", start);
+    };
+    window.addEventListener("pointerdown", start);
+    return () => window.removeEventListener("pointerdown", start);
+  }, []);
+
   const urlsRef = useRef([]);
   const [playlist, setPlaylist] = useState([]);
   const [track, setTrack] = useState(0);
