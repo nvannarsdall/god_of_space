@@ -91,6 +91,7 @@ function IntroCutscene({ onDone }) {
       const darkStart = 3.2;
       const darkEnd = 6.0;
       const darkBlend = clamp((t - darkStart) / (darkEnd - darkStart), 0, 1);
+      const dayBlend = 1 - darkBlend;
       const emberBlend = clamp((t - 9) / 3, 0, 1);
       const lerp = (a, b, amt) => Math.round(a + (b - a) * amt);
 
