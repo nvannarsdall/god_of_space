@@ -14,6 +14,7 @@ import {
   saveState,
 } from "./game/state";
 import TutorialOverlay from "./tutorial/TutorialOverlay";
+import ConstellationTree from "./constellations/ConstellationTree";
 import { buildTutorialSteps } from "./tutorial/tutorialData";
 
 /* --- INTRO CUTSCENE --- */
@@ -236,31 +237,54 @@ function IntroCutscene({ onDone }) {
       // Monolith & lighting
       const lit = darkBlend > 0.4;
       drawMonolith(W * 0.5, groundY + 18, 3.3, lit);
+
+      // Tighter, less "screen-wide" glow (fixes radial wash-out)
       ctx.save();
+      const glowX = W * 0.5;
+      const glowY = groundY - 28;
+      const r0 = 6;
+      const r1 = 140;
       const monolithGlow = ctx.createRadialGradient(
-        W * 0.5,
-        groundY - 20,
-        10,
-        W * 0.5,
-        groundY - 20,
-        200
+        glowX,
+        glowY,
+        r0,
+        glowX,
+        glowY,
+        r1
       );
-      monolithGlow.addColorStop(
-        0,
-        lit ? "rgba(255,208,160,0.45)" : "rgba(180,190,220,0.2)"
-      );
+      if (lit) {
+        monolithGlow.addColorStop(0, "rgba(255,208,160,0.18)");
+        monolithGlow.addColorStop(0.35, "rgba(255,208,160,0.06)");
+      } else {
+        monolithGlow.addColorStop(0, "rgba(180,190,220,0.11)");
+        monolithGlow.addColorStop(0.35, "rgba(180,190,220,0.04)");
+      }
       monolithGlow.addColorStop(1, "rgba(255,208,160,0)");
       ctx.globalCompositeOperation = "screen";
       ctx.fillStyle = monolithGlow;
-      ctx.fillRect(0, groundY - 200, W, 260);
+      ctx.fillRect(
+        Math.floor(glowX - r1),
+        Math.floor(glowY - r1),
+        Math.ceil(r1 * 2),
+        Math.ceil(r1 * 2)
+      );
       ctx.restore();
-      if (darkBlend > 0.3) {
-        ctx.save();
-        ctx.globalAlpha = 0.25 * darkBlend;
-        ctx.fillStyle = "#05040a";
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-      }
+
+      // Gentle vignette so the sky doesn't get washed out
+      ctx.save();
+      const vig = ctx.createRadialGradient(
+        W * 0.5,
+        H * 0.55,
+        60,
+        W * 0.5,
+        H * 0.55,
+        520
+      );
+      vig.addColorStop(0, "rgba(0,0,0,0)");
+      vig.addColorStop(1, `rgba(0,0,0,${0.38 * darkBlend})`);
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
 
       // Embers rising
       if (emberBlend > 0) {
@@ -480,6 +504,11 @@ export default function App() {
             ...s.village,
             prosperity: (s.village?.prosperity || 0) + (c.prosperityRate || 0),
           },
+          constellations: {
+            ...(s.constellations || { unlocked: [], points: 0 }),
+            points:
+              (s.constellations?.points || 0) + (c.constellationPointRate || 0),
+          },
         });
       });
     }, step);
@@ -533,7 +562,10 @@ export default function App() {
       const s = migrateState(s0);
       if (tutorialOn && !tutorialAllows.world) return s;
       const c = compute(s);
-      const gain = Math.max(0.25, c.omenClickGain || 1);
+      const gain = Math.max(
+        0.25,
+        (c.omenClickGain || 1) * (c.villageClickMult || 1)
+      );
       return { ...s, whispers: s.whispers + gain };
     });
   };
@@ -543,7 +575,8 @@ export default function App() {
       const s = migrateState(s0);
       if (tutorialOn && !tutorialAllows.world) return s;
       const c = compute(s);
-      const base = 0.2 * c.telescopeBonus * c.starlightBonus;
+      const base =
+        0.2 * c.telescopeBonus * c.starlightBonus * (c.skyClickMult || 1);
       const stardust = s.stardust + base;
       return migrateState({ ...s, stardust });
     });
@@ -698,6 +731,7 @@ export default function App() {
       tutorialStep: 0,
       tutorialHidden: true,
       tab: "village",
+      introSeen: true,
     };
     try {
       localStorage.removeItem(LS_KEY);
@@ -983,6 +1017,16 @@ export default function App() {
               }
             >
               Sky
+            </button>
+            <button
+              className={`tab ${tab === "constellations" ? "tabActive" : ""} ${
+                tutorialOn ? "tabDisabled" : ""
+              } ${!awakened ? "tabDisabled" : ""}`}
+              onClick={() =>
+                !tutorialOn && awakened && setTab("constellations")
+              }
+            >
+              Constellations
             </button>
             <button
               className={`tab ${tab === "codex" ? "tabActive" : ""} ${

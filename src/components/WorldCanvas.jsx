@@ -560,6 +560,31 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         };
 
         const skyLevels = st.sky || {};
+
+        // Constellation Architect (Phase 3): highlight restored star-nodes
+        const unlockedConst = st?.constellations?.unlocked || [];
+        if (unlockedConst.length) {
+          ctx.save();
+          ctx.fillStyle = "rgba(220,240,255,0.85)";
+          const nodePoints = {
+            root_dusk: { x: 0.5, y: 0.15 },
+            ember_hearth: { x: 0.28, y: 0.33 },
+            harvest_ring: { x: 0.18, y: 0.55 },
+            sanctuary_lane: { x: 0.36, y: 0.55 },
+            guiding_star: { x: 0.72, y: 0.33 },
+            chorus_lines: { x: 0.62, y: 0.55 },
+            orbit_warden: { x: 0.82, y: 0.55 },
+            crown_of_night: { x: 0.72, y: 0.78 },
+          };
+          unlockedConst.forEach((id) => {
+            const p = nodePoints[id];
+            if (!p) return;
+            const x = p.x * W;
+            const y = p.y * H;
+            ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
+          });
+          ctx.restore();
+        }
         constellationSets.forEach((set) => {
           if ((skyLevels[set.id] || 0) <= 0) return;
           drawConstellation(set.points, 0.25 + reveal * 0.5);

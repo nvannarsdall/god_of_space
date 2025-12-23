@@ -1,4 +1,5 @@
 import { clamp } from "./state";
+import { applyConstellationBonuses } from "../constellations/constellations";
 
 function compute(s) {
   const huts = s.village.huts || 0;
@@ -14,18 +15,22 @@ function compute(s) {
   const transcend = s.sky.transcend || 0;
   const crown = s.sky.crown || 0;
 
+  // === FOLLOWER CAP ===
   let cap = 12 + huts * 6 + council * 25;
   cap *= 1 + transcend * 0.08;
 
+  // === FOLLOWER GROWTH ===
   const growthAdd = huts >= 1 ? 0.07 + huts * 0.07 + farms * 0.11 : 0;
   const pressure = cap <= 0 ? 1 : clamp(1 - s.followers / cap, 0, 1);
   let followerRate =
     s.unlocked.awakened && huts >= 1 ? growthAdd * (0.2 + 0.8 * pressure) : 0;
 
+  // === PROSPERITY LOOP ===
   const prosperityRate = s.unlocked.awakened
     ? 0.02 * s.followers + 0.05 * temples + 0.04 * festivals
     : 0;
 
+  // === DEVOTION PER FOLLOWER ===
   let devotionPerFollower = 0.55;
   devotionPerFollower *= 1 + farms * 0.02;
   devotionPerFollower *= 1 + temples * 0.08;
@@ -37,28 +42,45 @@ function compute(s) {
   const surgeMult = 1 + festivals * 0.1;
   const surgeEV = 1 + surgeChance * (surgeMult - 1);
 
-  const globalMul = 1 + crown * 0.05;
+  let globalMul = 1 + crown * 0.05;
   let devotionRate = s.unlocked.awakened
     ? s.followers * devotionPerFollower * surgeEV * globalMul
     : 0;
 
-  const omenRate = s.unlocked.awakened
+  // === OMENS ===
+  let omenRate = s.unlocked.awakened
     ? (0.05 * shrines + 0.01 * festivals) * globalMul
     : 0;
-  const omenClickGain =
+  let omenClickGain =
     (1 + 0.06 * festivals + 0.02 * shrines) * (0.9 + 0.1 * globalMul);
 
-  const veil = clamp(1 - starsong * 0.09, 0.08, 1);
-  const starlightBonus = 1 + orbits * 0.08;
-  const telescopeBonus = 1 + telescope * 0.12;
+  // === SKY ===
+  let veil = clamp(1 - starsong * 0.09, 0.08, 1);
+  let starlightBonus = 1 + orbits * 0.08;
+  let telescopeBonus = 1 + telescope * 0.12;
 
+  // Click multipliers exposed to App click handlers
+  let skyClickMult = 1;
+  let villageClickMult = 1;
+
+  // === PORTENT BUFF ===
   const portentActive = (s.buffs?.portentUntil || 0) > (s.t || 0);
   const portentMul = portentActive ? 1.45 : 1;
   followerRate *= portentMul;
   devotionRate *= portentMul;
+  omenRate *= portentMul;
+  omenClickGain *= portentMul;
   const finalProsperityRate = prosperityRate * portentMul;
 
-  return {
+  // === CONSTELLATION POINTS (Phase 3) ===
+  // Slow, steady trickle that scales with devotion & starlight activity.
+  // (This is intentionally gentle; node costs are small.)
+  const constellationPointRate = s.unlocked.awakened
+    ? clamp(devotionRate / 1800, 0, 2.5) + 0.01 + 0.005 * temples
+    : 0;
+
+  // Apply constellation bonuses (branching synergies)
+  const withBonuses = applyConstellationBonuses(s, {
     cap,
     followerRate,
     devotionRate,
@@ -69,8 +91,13 @@ function compute(s) {
     starlightBonus,
     telescopeBonus,
     globalMul,
+    skyClickMult,
+    villageClickMult,
     portentActive,
-  };
+    constellationPointRate,
+  });
+
+  return withBonuses;
 }
 
 export { compute };
