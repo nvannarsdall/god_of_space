@@ -235,50 +235,25 @@ function IntroCutscene({ onDone }) {
 
       // Monolith & lighting
       const lit = darkBlend > 0.4;
-      ctx.save();
-      ctx.globalAlpha = 0.5;
-      ctx.fillStyle = "#050509";
-      ctx.translate(W * 0.5, groundY + 24);
-      ctx.scale(26, 5);
-      ctx.beginPath();
-      ctx.arc(0, 0, 1, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
       drawMonolith(W * 0.5, groundY + 18, 3.3, lit);
-      if (lit) {
-        ctx.save();
-        const monolithGlow = ctx.createRadialGradient(
-          W * 0.5,
-          groundY - 20,
-          10,
-          W * 0.5,
-          groundY - 20,
-          200
-        );
-        monolithGlow.addColorStop(0, "rgba(255,208,160,0.2)");
-        monolithGlow.addColorStop(0.5, "rgba(255,200,140,0.08)");
-        monolithGlow.addColorStop(1, "rgba(255,208,160,0)");
-        ctx.globalCompositeOperation = "screen";
-        ctx.fillStyle = monolithGlow;
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-
-        ctx.save();
-        const beam = ctx.createLinearGradient(
-          W * 0.5,
-          groundY - 140,
-          W * 0.5,
-          groundY + 20
-        );
-        beam.addColorStop(0, "rgba(255,212,170,0.0)");
-        beam.addColorStop(0.5, "rgba(255,212,170,0.08)");
-        beam.addColorStop(1, "rgba(255,212,170,0.0)");
-        ctx.globalCompositeOperation = "screen";
-        ctx.fillStyle = beam;
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-      }
+      ctx.save();
+      const monolithGlow = ctx.createRadialGradient(
+        W * 0.5,
+        groundY - 20,
+        10,
+        W * 0.5,
+        groundY - 20,
+        200
+      );
+      monolithGlow.addColorStop(
+        0,
+        lit ? "rgba(255,208,160,0.45)" : "rgba(180,190,220,0.2)"
+      );
+      monolithGlow.addColorStop(1, "rgba(255,208,160,0)");
+      ctx.globalCompositeOperation = "screen";
+      ctx.fillStyle = monolithGlow;
+      ctx.fillRect(0, groundY - 200, W, 260);
+      ctx.restore();
       if (darkBlend > 0.3) {
         ctx.save();
         ctx.globalAlpha = 0.25 * darkBlend;
