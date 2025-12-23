@@ -296,7 +296,6 @@ export default function App() {
   const seekerBtnRef = useRef(null);
   const statusRef = useRef(null);
   const upgradesRef = useRef(null);
-  const convertBtnRef = useRef(null);
   const skyTabRef = useRef(null);
 
   const getRectFromRef = (ref) => {
@@ -325,7 +324,6 @@ export default function App() {
         status: statusRef,
         seekerButton: seekerBtnRef,
         upgrades: upgradesRef,
-        convertButton: convertBtnRef,
         skyTab: skyTabRef,
       },
     });
@@ -342,7 +340,6 @@ export default function App() {
   const isVillageListStep = tutorialOn
     ? Boolean(tutorialAllows.villageUpgrades)
     : true;
-  const isConvertStep = tutorialOn ? Boolean(tutorialAllows.convert) : true;
   const isSkyTabStep = tutorialOn ? Boolean(tutorialAllows.skyTab) : true;
   const isSkyUpgradeStep = tutorialOn
     ? Boolean(tutorialAllows.skyUpgrades)
@@ -387,7 +384,7 @@ export default function App() {
           followers: Math.min(c.cap, s.followers + c.followerRate),
           devotion: s.devotion + c.devotionRate,
           whispers: s.whispers + (c.omenRate || 0),
-          stardust: Math.max(0, s.stardust - 0.015),
+          stardust: s.stardust,
         });
       });
     }, step);
@@ -451,15 +448,9 @@ export default function App() {
       const s = migrateState(s0);
       if (tutorialOn && !tutorialAllows.world) return s;
       const c = compute(s);
-      const base = 0.12 * c.telescopeBonus;
-      let stardust = s.stardust + base;
-      let power = s.power;
-      if (s.unlocked.sky) {
-        const immediate = Math.min(stardust, 0.25);
-        stardust -= immediate;
-        power += immediate * 0.75;
-      }
-      return migrateState({ ...s, stardust, power });
+      const base = 0.12 * c.telescopeBonus * c.starlightBonus;
+      const stardust = s.stardust + base;
+      return migrateState({ ...s, stardust });
     });
   };
 
@@ -498,24 +489,6 @@ export default function App() {
     showToast("A Portent ignites the dusk.");
   };
 
-  const convert = () => {
-    setState((s0) => {
-      const s = migrateState(s0);
-      if (tutorialOn && s.ui?.tutorialStep !== 4) return s;
-      const c = compute(s);
-      if (!s.unlocked.convert) return s;
-      if (s.devotion < 10) return s;
-      const spend = Math.min(s.devotion, Math.max(10, s.devotion * 0.12));
-      const gain = spend * c.convertEff;
-      return migrateState({
-        ...s,
-        devotion: s.devotion - spend,
-        power: s.power + gain,
-      });
-    });
-    showToast("Reverence condenses into Authority.");
-  };
-
   const buy = (u, which) => {
     setState((s0) => {
       const s = migrateState(s0);
@@ -527,8 +500,8 @@ export default function App() {
         if (step === 3 && !["huts", "temples"].includes(u.id)) return s;
       }
       if (tut && which === "sky") {
-        if (step < 5) return s;
-        if (step === 5 && u.id !== "starsong") return s;
+        if (step < 4) return s;
+        if (step === 4 && u.id !== "starsong") return s;
       }
       const lvl = which === "village" ? s.village[u.id] : s.sky[u.id];
       const cost = upgradeCost(u.baseCost, u.growth, lvl);
@@ -541,10 +514,10 @@ export default function App() {
           village: { ...s.village, [u.id]: lvl + 1 },
         });
       }
-      if (s.power < cost) return s;
+      if (s.stardust < cost) return s;
       return migrateState({
         ...s,
-        power: s.power - cost,
+        stardust: s.stardust - cost,
         sky: { ...s.sky, [u.id]: lvl + 1 },
       });
     });
@@ -837,31 +810,15 @@ export default function App() {
                 <div className="statLabel">
                   <img
                     className="ico"
-                    src="/assets/pixel/icon_authority.png"
+                    src="/assets/pixel/icon_starlight.png"
                     alt=""
                   />{" "}
-                  Authority
+                  Starlight
                 </div>
-                <div className="statValueSmall">{fmt(state.power)}</div>
+                <div className="statValueSmall">{fmt(state.stardust)}</div>
               </div>
-              <div
-                ref={convertBtnRef}
-                className={
-                  tutorialStepData?.id === "convert" ? "tutTarget" : ""
-                }
-                style={{ marginTop: 8 }}
-              >
-                <Button
-                  variant="secondary"
-                  onClick={convert}
-                  disabled={
-                    !isConvertStep ||
-                    !state.unlocked.convert ||
-                    state.devotion < 10
-                  }
-                >
-                  Convert Reverence → Authority
-                </Button>
+              <div className="statSub" style={{ marginTop: 6 }}>
+                Earned by clicking the sky.
               </div>
             </div>
           </Card>
@@ -966,12 +923,12 @@ export default function App() {
             >
               {SKY_UPGRADES.filter((u) => {
                 if (!tutorialOn) return true;
-                if (tutStep === 5) return u.id === "starsong";
+                if (tutStep === 4) return u.id === "starsong";
                 return true;
               }).map((u) => {
                 const lvl = state.sky[u.id] || 0;
                 const cost = upgradeCost(u.baseCost, u.growth, lvl);
-                const can = state.power >= cost && isSkyUpgradeStep;
+                const can = state.stardust >= cost && isSkyUpgradeStep;
                 return (
                   <div key={u.id} className="item">
                     <div className="itemTop">
@@ -982,7 +939,7 @@ export default function App() {
                     <div className="itemEffect">{u.effect(lvl)}</div>
                     <div className="rowBetween" style={{ marginTop: 10 }}>
                       <div className="smallText">
-                        Cost: <b>{fmt(cost)}</b> Authority
+                        Cost: <b>{fmt(cost)}</b> Starlight
                       </div>
                       <Button
                         disabled={!can}

@@ -30,20 +30,11 @@ function buildTutorialSteps({ state, seekerCost, getRect, refs }) {
     {
       id: "temple",
       title: "Build a Temple",
-      body: "Buy 1 Temple to unlock conversion. You will soon turn Reverence into Authority.",
+      body: "Buy 1 Temple to open the Sky tab and deepen the village's reverence.",
       targets: [() => getRect(refs.upgrades), () => getRect(refs.status)],
       target: () => getRect(refs.upgrades),
       done: () => (state.village.temples || 0) >= 1,
       allow: { villageUpgrades: true, world: true },
-    },
-    {
-      id: "convert",
-      title: "Convert Reverence",
-      body: "Use Convert to turn Reverence into Authority. Authority is required to open the Sky tab.",
-      targets: [() => getRect(refs.convertButton), () => getRect(refs.status)],
-      target: () => getRect(refs.convertButton),
-      done: () => state.power > 0,
-      allow: { convert: true, world: true },
     },
     {
       id: "sky",

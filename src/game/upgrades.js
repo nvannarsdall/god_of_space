@@ -72,17 +72,17 @@ const SKY_UPGRADES = [
     desc: "Peel back the Veil: constellations become real.",
     baseCost: 40,
     growth: 1.22,
-    currency: "power",
+    currency: "stardust",
     effect: (lvl) => `Veil -${Math.round((lvl + 1) * 9)}%`,
   },
   {
     id: "orbits",
     name: "Orbits",
-    desc: "Mechanize the heavens: boosts conversion.",
+    desc: "Mechanize the heavens: starlight gathers faster.",
     baseCost: 125,
     growth: 1.24,
-    currency: "power",
-    effect: (lvl) => `Convert +${Math.round((lvl + 1) * 7)}%`,
+    currency: "stardust",
+    effect: (lvl) => `Starlight +${Math.round((lvl + 1) * 8)}%`,
   },
   {
     id: "telescope",
@@ -90,7 +90,7 @@ const SKY_UPGRADES = [
     desc: "Sky clicks yield more starlight.",
     baseCost: 230,
     growth: 1.25,
-    currency: "power",
+    currency: "stardust",
     effect: (lvl) => `Sky click +${Math.round((lvl + 1) * 12)}%`,
   },
   {
@@ -99,7 +99,7 @@ const SKY_UPGRADES = [
     desc: "The void yields: raises caps and stabilizes growth.",
     baseCost: 520,
     growth: 1.27,
-    currency: "power",
+    currency: "stardust",
     effect: (lvl) => `Cap +${Math.round((lvl + 1) * 8)}%`,
   },
   {
@@ -108,7 +108,7 @@ const SKY_UPGRADES = [
     desc: "Rule the dusk: increases global output.",
     baseCost: 1100,
     growth: 1.29,
-    currency: "power",
+    currency: "stardust",
     effect: (lvl) => `All +${Math.round((lvl + 1) * 5)}%`,
   },
 ];

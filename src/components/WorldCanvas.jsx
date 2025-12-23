@@ -47,14 +47,52 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
   }, [state, computed, mode]);
 
   const stars = useMemo(() => makeStars(state.seed || 999), []);
-  const constellation = useMemo(
+  const constellationSets = useMemo(
     () => [
-      { x: 0.16, y: 0.22 },
-      { x: 0.28, y: 0.38 },
-      { x: 0.43, y: 0.26 },
-      { x: 0.61, y: 0.4 },
-      { x: 0.73, y: 0.24 },
-      { x: 0.86, y: 0.44 },
+      {
+        id: "starsong",
+        points: [
+          { x: 0.18, y: 0.24 },
+          { x: 0.28, y: 0.36 },
+          { x: 0.42, y: 0.26 },
+          { x: 0.54, y: 0.34 },
+        ],
+      },
+      {
+        id: "orbits",
+        points: [
+          { x: 0.62, y: 0.22 },
+          { x: 0.74, y: 0.3 },
+          { x: 0.84, y: 0.18 },
+          { x: 0.9, y: 0.28 },
+        ],
+      },
+      {
+        id: "telescope",
+        points: [
+          { x: 0.12, y: 0.48 },
+          { x: 0.22, y: 0.56 },
+          { x: 0.32, y: 0.5 },
+          { x: 0.42, y: 0.6 },
+        ],
+      },
+      {
+        id: "transcend",
+        points: [
+          { x: 0.58, y: 0.52 },
+          { x: 0.68, y: 0.6 },
+          { x: 0.78, y: 0.52 },
+          { x: 0.88, y: 0.6 },
+        ],
+      },
+      {
+        id: "crown",
+        points: [
+          { x: 0.32, y: 0.18 },
+          { x: 0.4, y: 0.1 },
+          { x: 0.48, y: 0.18 },
+        ],
+      },
     ],
     []
   );
@@ -227,42 +265,76 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       const t = st.settings?.reducedMotion ? 0 : now / 1000;
       const veil = computedRef.current?.veil || 1;
 
+      const isSkyMode = modeRef.current === "sky";
+
       // 2. SKY
       ctx.fillStyle = "#05040a";
       ctx.fillRect(0, 0, W, H);
 
-      const skyH = H * 0.65;
-      for (let y = 0; y < skyH; y += 2) {
-        const p = y / skyH;
-        if (p < 0.25) {
-          ctx.fillStyle = "#1a1c2c";
-          ctx.fillRect(0, y, W, 2);
-        } else if (p < 0.55 && dither(0, y / 2)) {
-          ctx.fillStyle = "#1a1c2c";
-          ctx.fillRect(0, y, W, 2);
-        }
-      }
-
-      // Stars
-      ctx.fillStyle = "#eaf2ff";
-      stars.forEach((layer) => {
-        layer.forEach((star) => {
-          const a = star.a * (1 - veil * 0.9);
-          if (a < 0.1) return;
-          const x = (star.x * W + t * 2 * star.sp) % W;
-          const y = (star.y * H) % H;
-          if (Math.random() < a)
-            ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
-        });
-      });
-
-      if (veil > 0.05) {
-        ctx.fillStyle = `rgba(15, 14, 20, ${veil * 0.85})`;
+      if (isSkyMode) {
+        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, "#05040a");
+        grad.addColorStop(0.5, "#0d1020");
+        grad.addColorStop(1, "#0b0b16");
+        ctx.fillStyle = grad;
         ctx.fillRect(0, 0, W, H);
-      }
 
-      // 3. GROUND (Made slightly lighter to ensure visibility)
-      const groundY = Math.floor(H * 0.75);
+        const reveal = clamp(1 - veil, 0.05, 1);
+        ctx.fillStyle = "#eaf2ff";
+        stars.forEach((layer) => {
+          layer.forEach((star) => {
+            const a = star.a * (0.1 + reveal * 0.9);
+            if (a < 0.06) return;
+            const x = (star.x * W + t * 2 * star.sp) % W;
+            const y = (star.y * H) % H;
+            if (Math.random() < a) {
+              ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+            }
+          });
+        });
+
+        const drawConstellation = (points, alpha) => {
+          if (points.length < 2) return;
+          ctx.save();
+          ctx.strokeStyle = `rgba(140, 185, 255, ${alpha})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          points.forEach((p, i) => {
+            const x = p.x * W;
+            const y = p.y * H;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.stroke();
+          ctx.fillStyle = `rgba(200, 220, 255, ${alpha})`;
+          points.forEach((p) => {
+            ctx.fillRect(Math.round(p.x * W), Math.round(p.y * H), 2, 2);
+          });
+          ctx.restore();
+        };
+
+        const skyLevels = st.sky || {};
+        constellationSets.forEach((set) => {
+          if ((skyLevels[set.id] || 0) <= 0) return;
+          drawConstellation(set.points, 0.25 + reveal * 0.5);
+        });
+
+        if (veil > 0.08) {
+          ctx.fillStyle = `rgba(10, 12, 20, ${veil * 0.85})`;
+          ctx.fillRect(0, 0, W, H);
+        }
+      } else {
+        const skyH = H * 0.65;
+        for (let y = 0; y < skyH; y += 2) {
+          const p = y / skyH;
+          if (p < 0.25) {
+            ctx.fillStyle = "#1a1c2c";
+            ctx.fillRect(0, y, W, 2);
+          } else if (p < 0.55 && dither(0, y / 2)) {
+            ctx.fillStyle = "#1a1c2c";
+            ctx.fillRect(0, y, W, 2);
+          }
+        }
 
       // Mountains (Solid Color - Fixes the "gliding" transparency issue)
       ctx.fillStyle = "#111218";
@@ -296,14 +368,59 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         drawHouse(hx, hy, 1.8, false);
       }
 
-      if (temples > 0)
-        drawSpriteOrRect("temple", W * 0.85, groundY + 6, 30, 50, "#555", 2.0);
+      if (!isSkyMode) {
+        // 3. GROUND (Made slightly lighter to ensure visibility)
+        const groundY = Math.floor(H * 0.75);
 
-      const followers = Math.min(Math.floor(st.followers), 25);
-      for (let i = 0; i < followers; i++) {
-        const walk = Math.sin(t * 3 + i * 13) * 2;
-        const fx = W * (0.2 + i * 0.025) + walk;
-        drawSpriteOrRect("follower", fx, groundY + 14, 6, 12, "#fff", 2.0);
+        // Mountains (Solid Color - Fixes the "gliding" transparency issue)
+        ctx.fillStyle = "#111218";
+        ctx.beginPath();
+        ctx.moveTo(0, groundY);
+        for (let x = 0; x <= W; x += 8) {
+          ctx.lineTo(x, groundY - 8 - Math.abs(Math.sin(x * 0.04)) * 12);
+        }
+        ctx.lineTo(W, H);
+        ctx.lineTo(0, H);
+        ctx.fill();
+
+        // Foreground Ground
+        ctx.fillStyle = "#0b0a10";
+        ctx.fillRect(0, groundY, W, H - groundY);
+        // Horizon Line
+        ctx.fillStyle = "#333544";
+        ctx.fillRect(0, groundY, W, 2);
+
+        // 4. ENTITIES
+        const huts = st.village.huts || 0;
+        const temples = st.village.temples || 0;
+
+        const lit = st.devotion > 0 && Math.sin(t * 2) > 0;
+        // Main Hut (Y + 4 to sit on ground)
+        drawHouse(W * 0.25, groundY + 4, 2.0, lit);
+
+        for (let i = 0; i < Math.min(huts, 12); i++) {
+          const hx = W * (0.35 + i * 0.05);
+          const hy = groundY + 6 + (i % 2) * 4;
+          drawHouse(hx, hy, 1.8, false);
+        }
+
+        if (temples > 0)
+          drawSpriteOrRect(
+            "temple",
+            W * 0.85,
+            groundY + 6,
+            30,
+            50,
+            "#555",
+            2.0
+          );
+
+        const followers = Math.min(Math.floor(st.followers), 25);
+        for (let i = 0; i < followers; i++) {
+          const walk = Math.sin(t * 3 + i * 13) * 2;
+          const fx = W * (0.2 + i * 0.025) + walk;
+          drawSpriteOrRect("follower", fx, groundY + 10, 6, 12, "#fff", 1.4);
+        }
       }
 
       // 5. FX PARTICLES
@@ -342,7 +459,7 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
 
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [stars]);
+  }, [stars, constellationSets]);
 
   const handleClick = (e) => {
     const rect = wrapRef.current.getBoundingClientRect();
@@ -353,7 +470,7 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
 
     if (mode === "sky") {
       addMotesTo(x, y, 0.5, 0.3, "sky", 5);
-      addFloat(x, y, "+Star");
+      addFloat(x, y, "+Starlight");
       onClickSky();
     } else {
       addMotesTo(x, y, TOTEM_TARGET.x, TOTEM_TARGET.y, "village", 5);
