@@ -54,6 +54,7 @@ function IntroCutscene({ onDone }) {
       if (phaseNow !== phase) {
         setPhase(phaseNow);
       }
+      ctx.restore();
 
       if (!anim.current.seeded) {
         anim.current.seeded = true;
