@@ -235,59 +235,25 @@ function IntroCutscene({ onDone }) {
 
       // Monolith & lighting
       const lit = darkBlend > 0.4;
-      ctx.save();
-      ctx.globalAlpha = 0.5;
-      ctx.fillStyle = "#050509";
-      ctx.translate(W * 0.5, groundY + 24);
-      ctx.scale(26, 5);
-      ctx.beginPath();
-      ctx.arc(0, 0, 1, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
       drawMonolith(W * 0.5, groundY + 18, 3.3, lit);
-      if (lit) {
-        ctx.save();
-        ctx.globalCompositeOperation = "screen";
-        const beam = ctx.createLinearGradient(
-          W * 0.5,
-          groundY - 160,
-          W * 0.5,
-          groundY + 30
-        );
-        beam.addColorStop(0, "rgba(255,214,176,0.0)");
-        beam.addColorStop(0.35, "rgba(255,214,176,0.09)");
-        beam.addColorStop(0.7, "rgba(255,214,176,0.05)");
-        beam.addColorStop(1, "rgba(255,214,176,0.0)");
-        ctx.fillStyle = beam;
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-
-        ctx.save();
-        ctx.globalCompositeOperation = "screen";
-        const wash = ctx.createLinearGradient(
-          W * 0.5 - 140,
-          groundY - 10,
-          W * 0.5 + 140,
-          groundY - 10
-        );
-        wash.addColorStop(0, "rgba(255,206,150,0.0)");
-        wash.addColorStop(0.5, "rgba(255,206,150,0.12)");
-        wash.addColorStop(1, "rgba(255,206,150,0.0)");
-        ctx.fillStyle = wash;
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-
-        ctx.save();
-        ctx.globalCompositeOperation = "multiply";
-        const vignette = ctx.createLinearGradient(0, 0, W, 0);
-        vignette.addColorStop(0, "rgba(10,12,20,0.18)");
-        vignette.addColorStop(0.5, "rgba(10,12,20,0)");
-        vignette.addColorStop(1, "rgba(10,12,20,0.18)");
-        ctx.fillStyle = vignette;
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-      }
+      ctx.save();
+      const monolithGlow = ctx.createRadialGradient(
+        W * 0.5,
+        groundY - 20,
+        10,
+        W * 0.5,
+        groundY - 20,
+        200
+      );
+      monolithGlow.addColorStop(
+        0,
+        lit ? "rgba(255,208,160,0.45)" : "rgba(180,190,220,0.2)"
+      );
+      monolithGlow.addColorStop(1, "rgba(255,208,160,0)");
+      ctx.globalCompositeOperation = "screen";
+      ctx.fillStyle = monolithGlow;
+      ctx.fillRect(0, groundY - 200, W, 260);
+      ctx.restore();
       if (darkBlend > 0.3) {
         ctx.save();
         ctx.globalAlpha = 0.25 * darkBlend;

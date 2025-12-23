@@ -459,7 +459,6 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
 
         const lit = st.devotion > 0;
         // Main Hut (Y + 4 to sit on ground)
-        drawShadow(W * 0.26, groundY + 12, 14, 3, 0.45);
         drawHouse(W * 0.26, groundY + 6, 2.4, lit);
         if (lit) {
           ctx.save();
@@ -471,65 +470,39 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
             groundY - 12,
             70
           );
-          hutGlow.addColorStop(0, "rgba(255,220,160,0.22)");
+          hutGlow.addColorStop(0, "rgba(255,220,160,0.35)");
           hutGlow.addColorStop(1, "rgba(255,220,160,0)");
           ctx.globalCompositeOperation = "screen";
           ctx.fillStyle = hutGlow;
-          ctx.fillRect(0, 0, W, H);
+          ctx.fillRect(W * 0.16, groundY - 80, W * 0.2, 140);
           ctx.restore();
         }
 
         // Central monolith (main focal point)
-        drawShadow(W * 0.56, groundY + 14, 22, 4, 0.5);
         drawMonolith(W * 0.56, groundY + 10, 2.8, lit);
-        if (lit) {
-          ctx.save();
-          ctx.globalCompositeOperation = "screen";
-          const beam = ctx.createLinearGradient(
-            W * 0.56,
-            groundY - 140,
-            W * 0.56,
-            groundY + 36
-          );
-          beam.addColorStop(0, "rgba(255,214,176,0)");
-          beam.addColorStop(0.35, "rgba(255,214,176,0.08)");
-          beam.addColorStop(0.7, "rgba(255,214,176,0.05)");
-          beam.addColorStop(1, "rgba(255,214,176,0)");
-          ctx.fillStyle = beam;
-          ctx.fillRect(0, 0, W, H);
-          ctx.restore();
-
-          ctx.save();
-          ctx.globalCompositeOperation = "screen";
-          const wash = ctx.createLinearGradient(
-            W * 0.56 - 120,
-            groundY - 10,
-            W * 0.56 + 120,
-            groundY - 10
-          );
-          wash.addColorStop(0, "rgba(255,206,150,0)");
-          wash.addColorStop(0.5, "rgba(255,206,150,0.1)");
-          wash.addColorStop(1, "rgba(255,206,150,0)");
-          ctx.fillStyle = wash;
-          ctx.fillRect(0, 0, W, H);
-          ctx.restore();
-
-          ctx.save();
-          ctx.globalCompositeOperation = "multiply";
-          const vignette = ctx.createLinearGradient(0, 0, W, 0);
-          vignette.addColorStop(0, "rgba(8,10,18,0.2)");
-          vignette.addColorStop(0.5, "rgba(8,10,18,0)");
-          vignette.addColorStop(1, "rgba(8,10,18,0.2)");
-          ctx.fillStyle = vignette;
-          ctx.fillRect(0, 0, W, H);
-          ctx.restore();
-        }
+        ctx.save();
+        const monolithGlow = ctx.createRadialGradient(
+          W * 0.56,
+          groundY - 8,
+          20,
+          W * 0.56,
+          groundY - 8,
+          160
+        );
+        monolithGlow.addColorStop(
+          0,
+          lit ? "rgba(255,214,168,0.4)" : "rgba(160,170,200,0.25)"
+        );
+        monolithGlow.addColorStop(1, "rgba(255,214,168,0)");
+        ctx.globalCompositeOperation = "screen";
+        ctx.fillStyle = monolithGlow;
+        ctx.fillRect(W * 0.4, groundY - 140, W * 0.32, 220);
+        ctx.restore();
 
         for (let i = 0; i < Math.min(huts, 12); i++) {
           const hx = W * (0.35 + i * 0.05);
           const hy = groundY + 8 + (i % 2) * 4;
-          drawShadow(hx, hy + 6, 10, 2.6, 0.35);
-          drawHouse(hx, hy, 1.8, lit);
+          drawHouse(hx, hy, 1.6, false);
         }
 
         if (temples > 0)
@@ -545,15 +518,9 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
 
         const followers = Math.min(Math.floor(st.followers), 25);
         for (let i = 0; i < followers; i++) {
-          const lane = i / Math.max(1, followers - 1);
-          const baseX = W * (0.32 + lane * 0.36);
-          const wander = Math.sin(t * 0.45 + i * 0.9) * 6;
-          const step = Math.sin(t * 2.2 + i * 1.4) * 2;
-          const stride = Math.abs(Math.sin(t * 4.4 + i * 1.2)) * 2;
-          const fx = baseX + wander + step;
-          const fy = groundY + 6 + stride;
-          drawShadow(fx, fy + 6, 5, 1.4, 0.3);
-          drawSpriteOrRect("follower", fx, fy, 3, 6, "#dfe7ff", 0.6);
+          const walk = Math.sin(t * 3 + i * 13) * 2;
+          const fx = W * (0.2 + i * 0.025) + walk;
+          drawSpriteOrRect("follower", fx, groundY + 8, 4, 8, "#dfe7ff", 0.9);
         }
       }
 
