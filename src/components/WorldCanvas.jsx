@@ -490,7 +490,7 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         for (let i = 0; i < Math.min(huts, 12); i++) {
           const hx = W * (0.35 + i * 0.05);
           const hy = groundY + 8 + (i % 2) * 4;
-          drawHouse(hx, hy, 1.8, lit);
+          drawHouse(hx, hy, 1.6, false);
         }
 
         if (temples > 0)
