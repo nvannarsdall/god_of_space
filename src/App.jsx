@@ -574,7 +574,7 @@ export default function App() {
     const el = audioRef.current;
     if (!el) return;
 
-    el.src = "/audio/god_of_space_theme.mp3";
+    el.src = "/assets/audio/god_of_space_theme.wav";
     el.loop = true;
     el.volume = 0.7;
     el.muted = true;
@@ -807,11 +807,27 @@ export default function App() {
 
   const canCallSeeker = !awakened && state.whispers >= seekerCost;
   const callSeeker = () => {
+    let did = false;
+    let failReason = "";
     setState((s0) => {
       const s = migrateState(s0);
-      if (tutorialOn && s.ui?.tutorialStep !== 1) return s;
-      if (s.unlocked.awakened) return s;
-      if (s.whispers < seekerCost) return s;
+
+      // During the tutorial, the Seeker action is intended for the "seeker" step (index 2).
+      if (tutorialOn && (s.ui?.tutorialStep ?? 0) !== 2) {
+        failReason = "Follow the tutorial steps first.";
+        return s;
+      }
+
+      if (s.unlocked.awakened) {
+        failReason = "You are already awakened.";
+        return s;
+      }
+      if (s.whispers < seekerCost) {
+        failReason = `Need ${seekerCost} Omens.`;
+        return s;
+      }
+
+      did = true;
       return migrateState({
         ...s,
         whispers: s.whispers - seekerCost,
@@ -819,7 +835,9 @@ export default function App() {
         unlocked: { ...s.unlocked, awakened: true },
       });
     });
-    showToast("A Seeker enters the dusk.");
+
+    if (did) showToast("A Seeker enters the dusk.");
+    else if (failReason) showToast(failReason);
   };
 
   const PORTENT_COST = 30;
