@@ -378,7 +378,7 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       const settings = st?.settings || {};
       if (settings.lightingEnabled === false) return;
 
-      const intensity = clamp(settings.lightingIntensity ?? 0.85, 0, 1);
+      const intensity = clamp(settings.lightingIntensity ?? 0.95, 0, 1);
       const bloomEnabled = settings.bloomEnabled !== false;
       const prosperityGlow = clamp((st?.village?.prosperity || 0) / 120, 0, 1);
 
@@ -422,6 +422,23 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
           s: 0.9,
           bloom: { r: 120, color: "rgba(255,220,160,ALPHA)", a: 0.1 },
         });
+
+        // Additional hut lights (Phase 3: make the settlement feel alive)
+        // Keep these subtle to avoid washing out the pixel art.
+        if (!isSkyMode && lit) {
+          const huts = st.village.huts || 0;
+          for (let i = 0; i < Math.min(huts, 12); i++) {
+            const hx = W * (0.35 + i * 0.05);
+            const hy = groundY - 12 + (i % 2) * 4;
+            lights.push({
+              x: hx,
+              y: hy,
+              r: 70,
+              s: 0.55,
+              bloom: { r: 95, color: "rgba(255,210,160,ALPHA)", a: 0.07 },
+            });
+          }
+        }
       }
 
       // Central monolith glow (always subtle, stronger when lit)
@@ -674,7 +691,7 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         for (let i = 0; i < Math.min(huts, 12); i++) {
           const hx = W * (0.35 + i * 0.05);
           const hy = groundY + 8 + (i % 2) * 4;
-          drawHouse(hx, hy, 1.6, false);
+          drawHouse(hx, hy, 2.0, lit);
         }
 
         if (temples > 0)

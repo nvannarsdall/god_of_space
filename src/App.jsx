@@ -729,10 +729,13 @@ export default function App() {
       if (intro) {
         // carry time if possible
         const t = intro.currentTime || 0;
-        intro.pause();
-        window.__gosIntroMusic = null;
-        // set game audio to same time for continuity
+        // Carry time for continuity.
         el.currentTime = Math.max(0, Math.min(t, 9999));
+        // Only stop bootstrap if in-game audio is already running.
+        if (!el.paused) {
+          intro.pause();
+          window.__gosIntroMusic = null;
+        }
       }
     } catch {}
 
@@ -749,6 +752,43 @@ export default function App() {
       if (p && typeof p.catch === "function") p.catch(() => {});
     }
   }, [state.settings.musicEnabled]);
+
+  // Autoplay-safe audio: keep music playing muted, then unmute on first user gesture.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+
+    // Start muted (allowed to autoplay), then unmute on interaction.
+    if (!window.__gosAudioUnlocked) {
+      el.muted = true;
+      const p = el.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    }
+
+    const unlock = () => {
+      if (window.__gosAudioUnlocked) return;
+      window.__gosAudioUnlocked = true;
+      try {
+        el.muted = false;
+        el.volume = clamp(state.settings.musicVolume ?? 0.7, 0, 1);
+        const p2 = el.play();
+        if (p2 && typeof p2.catch === "function") p2.catch(() => {});
+      } catch {}
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("touchstart", unlock);
+    };
+
+    window.addEventListener("pointerdown", unlock, { passive: true });
+    window.addEventListener("touchstart", unlock, { passive: true });
+    window.addEventListener("keydown", unlock);
+
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+      window.removeEventListener("touchstart", unlock);
+    };
+  }, [state.settings.musicVolume]);
 
   useEffect(() => {
     const el = audioRef.current;

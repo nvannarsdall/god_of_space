@@ -50,10 +50,12 @@ This awakens you — Followers begin to gather, and Reverence can grow.`,
       title: "Followers Are Potential",
       body: `Followers represent how many people could believe in you.
 
-You won't see every person on-screen — the village itself is the representation.`,
+You won't see every person on-screen — the village itself is the representation.
+
+Objective: have at least 1 Follower.`,
       targets: [() => getRect(refs.status), () => getRect(refs.world)],
       target: () => getRect(refs.status),
-      done: () => (state.followers || 0) >= 5,
+      done: () => (state.followers || 0) >= 1,
       allow: { world: true, villageTab: true },
     },
 
