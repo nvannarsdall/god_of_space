@@ -108,8 +108,6 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       });
     const base = "/assets/pixel";
     Promise.all([
-      load("house", `${base}/spr_house.png`),
-      load("houseDark", `${base}/spr_house_dark.png`),
       load("temple", `${base}/spr_temple.png`),
       load("follower", `${base}/spr_follower.png`),
     ]).then((items) => {
@@ -135,16 +133,79 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         const sw = img.width * scale;
         const sh = img.height * scale;
 
-        // DRAW BACKING RECT to plug holes (fixes the "3 dots" issue)
-        ctx.fillStyle = "#0b0a10"; // Dark background color
-        // Inset slightly so it doesn't bleed out edges
-        ctx.fillRect(dx + 2, dy + 2, sw - 4, sh - 4);
-
         ctx.drawImage(img, dx, dy, sw, sh);
       } else {
         ctx.fillStyle = col;
         ctx.fillRect(Math.floor(x - w / 2), Math.floor(y - h), w, h);
       }
+    };
+
+    const drawHouse = (x, y, scale = 2.0, lit = true) => {
+      const palette = lit
+        ? {
+            outline: "#151724",
+            roof: "#7e5c88",
+            roofShadow: "#6a4a7a",
+            wall: "#464c6c",
+            door: "#1f2230",
+            window: "#a0c4d8",
+            trim: "#c4cede",
+          }
+        : {
+            outline: "#0a0b12",
+            roof: "#42304c",
+            roofShadow: "#34243e",
+            wall: "#202434",
+            door: "#14141e",
+            window: "#50606e",
+            trim: "#6e7682",
+          };
+
+      const width = 32;
+      const height = 32;
+      const dx = Math.floor(x - (width * scale) / 2);
+      const dy = Math.floor(y - height * scale);
+      const s = scale;
+
+      const fill = (sx, sy, sw, sh, col) => {
+        ctx.fillStyle = col;
+        ctx.fillRect(dx + sx * s, dy + sy * s, sw * s, sh * s);
+      };
+
+      // Roof (stepped slope)
+      fill(6, 6, 20, 2, palette.roofShadow);
+      fill(5, 8, 22, 2, palette.roofShadow);
+      fill(4, 10, 24, 2, palette.roofShadow);
+      fill(3, 12, 26, 2, palette.roof);
+      fill(2, 14, 28, 3, palette.roof);
+
+      // Chimney
+      fill(21, 4, 4, 6, palette.roofShadow);
+      fill(21, 4, 4, 1, palette.outline);
+
+      // House body
+      fill(6, 17, 20, 12, palette.wall);
+      fill(6, 17, 20, 1, palette.outline);
+      fill(6, 28, 20, 1, palette.outline);
+      fill(6, 17, 1, 12, palette.outline);
+      fill(25, 17, 1, 12, palette.outline);
+
+      // Door
+      fill(14, 21, 4, 8, palette.door);
+      fill(14, 21, 4, 1, palette.outline);
+      fill(14, 28, 4, 1, palette.outline);
+      fill(14, 21, 1, 8, palette.outline);
+      fill(17, 21, 1, 8, palette.outline);
+      fill(16, 25, 1, 1, palette.trim);
+
+      // Window
+      fill(9, 21, 4, 4, palette.window);
+      fill(9, 21, 4, 1, palette.outline);
+      fill(9, 24, 4, 1, palette.outline);
+      fill(9, 21, 1, 4, palette.outline);
+      fill(12, 21, 1, 4, palette.outline);
+      fill(10, 22, 1, 1, palette.trim);
+      fill(11, 23, 1, 1, palette.trim);
     };
 
     const loop = (now) => {
@@ -227,20 +288,12 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
 
       const lit = st.devotion > 0 && Math.sin(t * 2) > 0;
       // Main Hut (Y + 4 to sit on ground)
-      drawSpriteOrRect(
-        lit ? "house" : "houseDark",
-        W * 0.25,
-        groundY + 4,
-        24,
-        18,
-        "#444",
-        2.0
-      );
+      drawHouse(W * 0.25, groundY + 4, 2.0, lit);
 
       for (let i = 0; i < Math.min(huts, 12); i++) {
         const hx = W * (0.35 + i * 0.05);
         const hy = groundY + 6 + (i % 2) * 4;
-        drawSpriteOrRect("houseDark", hx, hy, 20, 16, "#333", 1.8);
+        drawHouse(hx, hy, 1.8, false);
       }
 
       if (temples > 0)
