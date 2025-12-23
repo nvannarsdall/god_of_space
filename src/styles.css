@@ -98,6 +98,13 @@ button:disabled {
   grid-template-areas: "top top" "world right";
 }
 
+.world {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .topBar {
   grid-area: top;
   background: var(--bg1);
