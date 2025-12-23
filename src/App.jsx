@@ -23,19 +23,20 @@ function IntroCutscene({ onDone }) {
   const rafRef = useRef(null);
   const GOD_NAME = "Astrael";
   const TIMING = {
-    flashStart: 3.0,
-    flashEnd: 4.6,
-    darkStart: 4.2,
-    darkEnd: 8.5,
-    vanishStart: 8.5,
-    vanishEnd: 14.5,
-    ctaStart: 15.5,
+    flashStart: 3.2,
+    flashEnd: 5.4,
+    darkStart: 4.4,
+    darkEnd: 10.5,
+    vanishStart: 10.5,
+    vanishEnd: 18.5,
+    ctaStart: 21.5,
   };
 
   const anim = useRef({
     start: 0,
     stars: [],
     embers: [],
+    dust: [],
     moon: null,
     seeded: false,
   });
@@ -56,17 +57,61 @@ function IntroCutscene({ onDone }) {
       ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
     };
 
+    const drawMonolith = (x, y, scale = 3.0, lit = true) => {
+      const palette = lit
+        ? {
+            outline: "#15151f",
+            base: "#2c3244",
+            core: "#6f7fb4",
+            glow: "#ffe0b5",
+            trim: "#949ec1",
+          }
+        : {
+            outline: "#0b0c12",
+            base: "#1c1f2d",
+            core: "#394059",
+            glow: "#9aa0a8",
+            trim: "#596176",
+          };
+      const width = 28;
+      const height = 40;
+      const dx = Math.floor(x - (width * scale) / 2);
+      const dy = Math.floor(y - height * scale);
+      const s = scale;
+      const fill = (sx, sy, sw, sh, col) => {
+        ctx.fillStyle = col;
+        ctx.fillRect(dx + sx * s, dy + sy * s, sw * s, sh * s);
+      };
+
+      fill(2, 30, 24, 7, palette.base);
+      fill(2, 30, 24, 1, palette.outline);
+      fill(2, 36, 24, 1, palette.outline);
+      fill(2, 30, 1, 7, palette.outline);
+      fill(25, 30, 1, 7, palette.outline);
+
+      fill(9, 6, 10, 24, palette.core);
+      fill(9, 6, 10, 1, palette.outline);
+      fill(9, 29, 10, 1, palette.outline);
+      fill(9, 6, 1, 24, palette.outline);
+      fill(18, 6, 1, 24, palette.outline);
+      fill(10, 10, 8, 2, palette.trim);
+      fill(11, 13, 6, 2, palette.trim);
+      fill(12, 16, 4, 2, palette.trim);
+      fill(13, 19, 2, 6, palette.glow);
+      fill(12, 25, 4, 2, palette.glow);
+    };
+
     const loop = (now) => {
       if (!anim.current.start) anim.current.start = now;
       const t = (now - anim.current.start) / 1000;
 
-      const phaseNow = t >= 10 ? 2 : t >= 6 ? 1 : 0;
+      const phaseNow =
+        t >= TIMING.ctaStart ? 3 : t >= TIMING.vanishStart ? 2 : t >= 6 ? 1 : 0;
       if (phaseNow !== phase) {
         setPhase(phaseNow);
       }
 
       if (!anim.current.seeded) {
-        const vanishWindow = TIMING.vanishEnd - TIMING.vanishStart;
         anim.current.seeded = true;
         anim.current.stars = Array.from({ length: 90 }, () => ({
           x: Math.random() * W,
@@ -81,18 +126,24 @@ function IntroCutscene({ onDone }) {
           x: W * 0.72,
           y: H * 0.22,
           r: 16,
-          fadeAt: 7.5,
+          fadeAt: 9.5,
           fadeDur: 1.4,
         };
+        anim.current.dust = Array.from({ length: 120 }, () => ({
+          x: Math.random() * W,
+          y: H * 0.6 + Math.random() * H * 0.4,
+          sp: 0.2 + Math.random() * 0.6,
+          tw: Math.random() * Math.PI * 2,
+        }));
       }
 
-      const flashStart = 2.0;
-      const flashEnd = 3.2;
-      const darkStart = 3.2;
-      const darkEnd = 6.0;
+      const flashStart = TIMING.flashStart;
+      const flashEnd = TIMING.flashEnd;
+      const darkStart = TIMING.darkStart;
+      const darkEnd = TIMING.darkEnd;
       const darkBlend = clamp((t - darkStart) / (darkEnd - darkStart), 0, 1);
       const dayBlend = 1 - darkBlend;
-      const emberBlend = clamp((t - 9) / 3, 0, 1);
+      const emberBlend = clamp((t - 10.5) / 4, 0, 1);
       const lerp = (a, b, amt) => Math.round(a + (b - a) * amt);
 
       const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
@@ -159,7 +210,7 @@ function IntroCutscene({ onDone }) {
         ctx.fillRect(0, groundY - 50, W, 60);
         ctx.restore();
       }
-      ctx.fillStyle = "#121423";
+      ctx.fillStyle = "#111625";
       ctx.beginPath();
       ctx.moveTo(0, groundY);
       ctx.lineTo(W * 0.2, groundY - 30);
@@ -172,8 +223,37 @@ function IntroCutscene({ onDone }) {
       ctx.closePath();
       ctx.fill();
 
-      ctx.fillStyle = "#0b0d18";
-      pixelRect(0, groundY, W, H - groundY, "#0b0d18");
+      ctx.fillStyle = "#090b16";
+      pixelRect(0, groundY, W, H - groundY, "#090b16");
+      if (darkBlend < 0.6) {
+        ctx.save();
+        ctx.globalAlpha = 0.35 * (1 - darkBlend);
+        ctx.fillStyle = "#5b6380";
+        ctx.fillRect(0, groundY - 1, W, 2);
+        ctx.restore();
+      }
+
+      // Monolith & lighting
+      const lit = darkBlend > 0.4;
+      drawMonolith(W * 0.5, groundY + 18, 3.3, lit);
+      ctx.save();
+      const monolithGlow = ctx.createRadialGradient(
+        W * 0.5,
+        groundY - 20,
+        10,
+        W * 0.5,
+        groundY - 20,
+        200
+      );
+      monolithGlow.addColorStop(
+        0,
+        lit ? "rgba(255,208,160,0.25)" : "rgba(180,190,220,0.12)"
+      );
+      monolithGlow.addColorStop(1, "rgba(255,208,160,0)");
+      ctx.globalCompositeOperation = "screen";
+      ctx.fillStyle = monolithGlow;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
       if (darkBlend > 0.3) {
         ctx.save();
         ctx.globalAlpha = 0.25 * darkBlend;
@@ -204,6 +284,18 @@ function IntroCutscene({ onDone }) {
         ctx.globalAlpha = 1;
       }
 
+      // Dust shimmer near ground
+      if (darkBlend > 0.2) {
+        ctx.save();
+        ctx.fillStyle = "#d9e8ff";
+        anim.current.dust.forEach((d) => {
+          const twinkle = 0.2 + 0.8 * Math.abs(Math.sin(t * d.sp + d.tw));
+          ctx.globalAlpha = twinkle * 0.12 * darkBlend;
+          ctx.fillRect(Math.round(d.x), Math.round(d.y), 1, 1);
+        });
+        ctx.restore();
+      }
+
       // 6. Text
       const drawText = (txt, y, col = "#fff") => {
         ctx.fillStyle = col;
@@ -217,12 +309,16 @@ function IntroCutscene({ onDone }) {
         ctx.shadowOffsetY = 0;
       };
 
-      if (t > 0.8 && t < 4)
+      if (t > 0.8 && t < 4.2)
         drawText("THE SKY HELD ITS BREATH", H / 3);
-      if (t > 4.2 && t < 8)
+      if (t > 4.4 && t < 9.2)
         drawText("A FLASH SHATTERED THE DAY", H / 3, "#f2b97d");
-      if (t > 8.2)
-        drawText("THEN EVEN STARS FELL QUIET", H / 3, "#f5e1c5");
+      if (t > 9.2 && t < 13.5)
+        drawText("THE HORIZON BLED GOLD", H / 3, "#f5d3a7");
+      if (t > 13.5 && t < 18.0)
+        drawText("THE MONOLITH AWOKE", H / 3, "#d9e8ff");
+      if (t > 18.0)
+        drawText(`WHISPER THE NAME: ${GOD_NAME}`, H / 3, "#f5e1c5");
 
       rafRef.current = requestAnimationFrame(loop);
     };
@@ -245,7 +341,7 @@ function IntroCutscene({ onDone }) {
         style={{ width: "100%", height: "100%", imageRendering: "pixelated" }}
       />
 
-      {phase === 2 && (
+      {phase === 3 && (
         <div
           style={{
             position: "absolute",
@@ -448,7 +544,7 @@ export default function App() {
       const s = migrateState(s0);
       if (tutorialOn && !tutorialAllows.world) return s;
       const c = compute(s);
-      const base = 0.12 * c.telescopeBonus * c.starlightBonus;
+      const base = 0.2 * c.telescopeBonus * c.starlightBonus;
       const stardust = s.stardust + base;
       return migrateState({ ...s, stardust });
     });
