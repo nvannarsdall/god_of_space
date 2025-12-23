@@ -16,6 +16,32 @@ import {
 import TutorialOverlay from "./tutorial/TutorialOverlay";
 import { buildTutorialSteps } from "./tutorial/tutorialData";
 
+/* ============================================================
+   INTRO MUSIC (AUTOPLAY-SAFE BOOTSTRAP)
+   - Starts immediately (muted) so it accompanies the cutscene.
+   - Unmutes on first user interaction (browser policy).
+   ============================================================ */
+if (typeof window !== "undefined" && !window.__gosIntroMusic) {
+  const a = new Audio("/assets/audio/god_of_space_theme.wav");
+  a.loop = true;
+  a.volume = 0.7;
+  a.muted = true;
+  // Start muted playback immediately; browsers allow muted autoplay.
+  a.currentTime = 0;
+  a.play().catch(() => {});
+  const unlock = () => {
+    a.muted = false;
+    a.play().catch(() => {});
+    window.removeEventListener("pointerdown", unlock);
+    window.removeEventListener("keydown", unlock);
+    window.removeEventListener("touchstart", unlock);
+  };
+  window.addEventListener("pointerdown", unlock, { once: true });
+  window.addEventListener("keydown", unlock, { once: true });
+  window.addEventListener("touchstart", unlock, { once: true });
+  window.__gosIntroMusic = a;
+}
+
 /* --- INTRO CUTSCENE --- */
 
 function IntroCutscene({ onDone }) {
@@ -51,6 +77,13 @@ function IntroCutscene({ onDone }) {
     if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
+
+    // Ensure intro music is running during the cutscene
+    try {
+      const a = window.__gosIntroMusic;
+      if (a) a.play().catch(() => {});
+    } catch {}
+
     const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
 
     const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -247,6 +280,11 @@ function IntroCutscene({ onDone }) {
       const endY = groundY + 6;
       const artifactY = startY + (endY - startY) * gCurve;
 
+      // Atmospheric entry energy (tied to velocity), plus violent stochastic flicker
+      const vel = clamp01(gCurve); // 0..1
+      const energy = Math.pow(vel, 1.7);
+      const flickerFall = 0.55 + Math.random() * 0.9; // violent
+      const entryGlow = clamp01(energy * flickerFall);
       const pulse =
         t >= TIMING.impactAt
           ? 0.5 + 0.5 * Math.sin((t - TIMING.impactAt) * 5.0)
@@ -270,7 +308,105 @@ function IntroCutscene({ onDone }) {
         ctx.fillRect(gx - r1, gy - r1, r1 * 2, r1 * 2);
         ctx.restore();
 
+        // intense atmospheric sky + terrain illumination
+        ctx.save();
+        ctx.globalCompositeOperation = "screen";
+
+        const glow = clamp01(pulse01) ** 0.6;
+
+        // sky wash
+        const skyGlow = ctx.createRadialGradient(
+          W * 0.5,
+          artifactY,
+          0,
+          W * 0.5,
+          artifactY,
+          800
+        );
+        skyGlow.addColorStop(0, `rgba(255,220,180,${0.35 * glow})`);
+        skyGlow.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = skyGlow;
+        ctx.fillRect(0, 0, W, H);
+
+        // ground illumination
+        ctx.fillStyle = `rgba(255,200,150,${0.18 * glow})`;
+        ctx.fillRect(0, groundY - 40, W, H);
+
+        ctx.restore();
+
+        // --- Atmospheric illumination (sky + terrain) while falling ---
+        // Layered bloom + scattering column, intensity driven by entryGlow (velocity-based)
+        ctx.save();
+        ctx.globalCompositeOperation = "screen";
+
+        const cx = W * 0.5;
+        const cy = artifactY;
+        const glow2 = clamp01(entryGlow);
+
+        // 1) Hot core bloom (tight)
+        const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, 220);
+        core.addColorStop(0, `rgba(255,250,240,${0.22 * glow2})`);
+        core.addColorStop(0.25, `rgba(255,220,180,${0.14 * glow2})`);
+        core.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = core;
+        ctx.fillRect(0, 0, W, H);
+
+        // 2) Wide sky wash (very soft)
+        const wash = ctx.createRadialGradient(cx, cy, 80, cx, cy, 1400);
+        wash.addColorStop(0, `rgba(255,210,165,${0.1 * glow2})`);
+        wash.addColorStop(0.6, `rgba(255,185,140,${0.05 * glow2})`);
+        wash.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = wash;
+        ctx.fillRect(0, 0, W, H);
+
+        // 3) Scattering column (downward-weighted)
+        const col = ctx.createLinearGradient(0, cy - 180, 0, cy + 680);
+        col.addColorStop(0, "rgba(0,0,0,0)");
+        col.addColorStop(0.35, `rgba(255,220,180,${0.05 * glow2})`);
+        col.addColorStop(0.65, `rgba(255,205,160,${0.12 * glow2})`);
+        col.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = col;
+        ctx.fillRect(0, 0, W, H);
+
+        // 4) Terrain lift (subtle; avoids blown-out wash)
+        ctx.fillStyle = `rgba(255,200,150,${0.04 * glow2})`;
+        ctx.fillRect(0, groundY - 26, W, H - (groundY - 26));
+
+        ctx.restore();
+
         drawArtifact(ctx, W * 0.5, artifactY, 1.55, pulse01);
+
+        // --- Shock-heated plasma tail (rear-facing, noisy, flickering) ---
+        if (t < TIMING.impactAt) {
+          ctx.save();
+          ctx.globalCompositeOperation = "lighter";
+          ctx.lineWidth = 1;
+
+          const tailN = 28;
+          for (let i = 0; i < tailN; i++) {
+            const t0 = i / tailN;
+            const a =
+              (1 - t0) *
+              (0.18 + 0.35 * entryGlow) *
+              (0.7 + Math.random() * 0.6);
+            const y0 = artifactY - 6 - i * (10 + 14 * (1 - vel));
+            const xJ = (Math.random() - 0.5) * (18 + 70 * t0);
+            ctx.strokeStyle = `rgba(255,180,120,${a})`;
+            ctx.beginPath();
+            ctx.moveTo(W * 0.5, y0);
+            ctx.lineTo(W * 0.5 + xJ, y0 - (26 + 38 * t0));
+            ctx.stroke();
+          }
+
+          // Occasional fragmentation flash (brief, subtle)
+          if (Math.random() < 0.1 * entryGlow) {
+            ctx.globalAlpha = 0.06 * entryGlow;
+            ctx.fillStyle = "rgba(255,245,235,1)";
+            ctx.fillRect(0, 0, W, H);
+          }
+
+          ctx.restore();
+        }
       }
 
       if (t >= TIMING.impactAt) {
@@ -302,7 +438,7 @@ function IntroCutscene({ onDone }) {
           gg.addColorStop(1, "rgba(0,0,0,0)");
           ctx.save();
           ctx.globalCompositeOperation = "screen";
-          ctx.globalAlpha = 0.75 * a;
+          ctx.globalAlpha = 0.55 * a;
           ctx.fillStyle = gg;
           ctx.fillRect(bx - br, by - br, br * 2, br * 2);
           ctx.restore();
@@ -433,42 +569,33 @@ export default function App() {
   // Audio & Refs
   const audioRef = useRef(null);
 
-  // ---- Audio helpers ----
-  const playMusic = (track) => {
-    if (!audioRef.current) return;
-    const a = audioRef.current;
-    a.src = `/audio/${track}.mp3`;
-    a.loop = true;
-    a.volume = 0.7;
-    a.play().catch(() => {});
-  };
-
-  const fadeToMusic = (track) => {
-    if (!audioRef.current) return;
-    const a = audioRef.current;
-    let v = a.volume;
-    const id = setInterval(() => {
-      v -= 0.05;
-      if (v <= 0) {
-        clearInterval(id);
-        a.pause();
-        playMusic(track);
-      } else {
-        a.volume = v;
-      }
-    }, 40);
-  };
-
-  // ---- Start intro music on first user interaction ----
+  // ---- Intro music (muted autoplay, unmute on interaction) ----
   useEffect(() => {
-    const start = () => {
-      playMusic("god_of_space_theme");
-      window.removeEventListener("pointerdown", start);
-    };
-    window.addEventListener("pointerdown", start);
-    return () => window.removeEventListener("pointerdown", start);
-  }, []);
+    const el = audioRef.current;
+    if (!el) return;
 
+    el.src = "/audio/god_of_space_theme.mp3";
+    el.loop = true;
+    el.volume = 0.7;
+    el.muted = true;
+
+    const play = () => el.play().catch(() => {});
+    play();
+
+    const unlock = () => {
+      el.muted = false;
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
   const urlsRef = useRef([]);
   const [playlist, setPlaylist] = useState([]);
   const [track, setTrack] = useState(0);
@@ -526,9 +653,20 @@ export default function App() {
     ? Boolean(tutorialAllows.skyUpgrades)
     : true;
   const isSeekerStep = tutorialOn ? Boolean(tutorialAllows.seeker) : true;
-  const inMenu = state.ui?.screen === "menu";
+  const inMenu = false;
   const leftHudPE = "auto";
   const rightPanelPE = "auto";
+
+  // Unlock the Sky tab mid-tutorial (slow reveal)
+  useEffect(() => {
+    if (!tutorialOn) return;
+    const step = state.ui?.tutorialStep || 0;
+    if (step >= 6 && !state.unlocked.sky) {
+      setState((s) =>
+        migrateState({ ...s, unlocked: { ...s.unlocked, sky: true } })
+      );
+    }
+  }, [tutorialOn, state.ui?.tutorialStep, state.unlocked.sky]);
   const veilPct = Math.round(computed.veil * 100);
 
   const showToast = (text) => {
@@ -578,6 +716,38 @@ export default function App() {
     el.volume = clamp(state.settings.musicVolume ?? 0.65, 0, 1);
     el.muted = !state.settings.musicEnabled;
   }, [state.settings.musicEnabled, state.settings.musicVolume]);
+
+  // Start/continue soundtrack in-game (and stop any intro bootstrap audio)
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+
+    // Stop bootstrap intro audio if it exists (prevents double playback)
+    try {
+      const intro = window.__gosIntroMusic;
+      if (intro) {
+        // carry time if possible
+        const t = intro.currentTime || 0;
+        intro.pause();
+        window.__gosIntroMusic = null;
+        // set game audio to same time for continuity
+        el.currentTime = Math.max(0, Math.min(t, 9999));
+      }
+    } catch {}
+
+    // Ensure a valid source is set.
+    if (!el.src || !String(el.src).includes("god_of_space_theme")) {
+      el.src = "/assets/audio/god_of_space_theme.wav";
+      try {
+        el.load();
+      } catch {}
+    }
+
+    if (state.settings.musicEnabled) {
+      const p = el.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    }
+  }, [state.settings.musicEnabled]);
 
   useEffect(() => {
     const el = audioRef.current;
@@ -826,15 +996,30 @@ export default function App() {
     tutorialOn && tutorialStepData?.targets
       ? tutorialStepData.targets.map((fn) => fn()).filter(Boolean)
       : null;
-
   if (showIntro) {
     return (
       <IntroCutscene
         onDone={() => {
-          setState((s) => ({
-            ...s,
-            ui: { ...s.ui, introSeen: true, screen: s.ui?.screen || "menu" },
-          }));
+          // Start the tutorial immediately after the intro (no menu).
+          setState((s0) => {
+            const keep = s0.settings;
+            const next = baseState();
+            next.settings = { ...keep, musicEnabled: true };
+            next.ui = {
+              ...next.ui,
+              screen: "tutorial",
+              tutorialActive: true,
+              tutorialStep: 0,
+              tutorialHidden: false,
+              tab: "village",
+              introSeen: true,
+              settingsOpen: false,
+            };
+            try {
+              localStorage.removeItem(LS_KEY);
+            } catch {}
+            return migrateState(next);
+          });
         }}
       />
     );
@@ -886,6 +1071,15 @@ export default function App() {
               title="Reduce motion"
             >
               {state.settings.reducedMotion ? "Motion: Low" : "Motion: Full"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() =>
+                setState((s) => ({ ...s, ui: { ...s.ui, settingsOpen: true } }))
+              }
+              title="Settings"
+            >
+              Settings
             </Button>
             <Button variant="danger" onClick={doReset} title="Reset progress">
               Reset
@@ -1142,33 +1336,98 @@ export default function App() {
         </Card>
       </div>
 
-      {inMenu && (
-        <div className="menuOverlay">
-          <div className="menuCard">
-            <div className="menuTitle">God of Space</div>
-            <div className="menuSub">
-              The sky is sealed. The village still whispers your name.
+      {state.ui?.settingsOpen && (
+        <div className="menuOverlay" style={{ pointerEvents: "auto" }}>
+          <div className="menuCard" style={{ maxWidth: 520 }}>
+            <div className="menuTitle">Settings</div>
+            <div className="menuSub">Audio</div>
+
+            <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(state.settings.musicEnabled)}
+                  onChange={(e) =>
+                    setState((s) =>
+                      migrateState({
+                        ...s,
+                        settings: {
+                          ...s.settings,
+                          musicEnabled: e.target.checked,
+                        },
+                      })
+                    )
+                  }
+                />
+                <span
+                  style={{
+                    fontFamily: '"Press Start 2P", monospace',
+                    fontSize: 12,
+                  }}
+                >
+                  Music Enabled
+                </span>
+              </label>
+
+              <div style={{ display: "grid", gap: 6 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: '"Press Start 2P", monospace',
+                      fontSize: 12,
+                    }}
+                  >
+                    Music Volume
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: '"Press Start 2P", monospace',
+                      fontSize: 12,
+                      opacity: 0.8,
+                    }}
+                  >
+                    {Math.round((state.settings.musicVolume ?? 0.65) * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={state.settings.musicVolume ?? 0.65}
+                  onChange={(e) =>
+                    setState((s) =>
+                      migrateState({
+                        ...s,
+                        settings: {
+                          ...s.settings,
+                          musicVolume: Number(e.target.value),
+                          musicEnabled: true,
+                        },
+                      })
+                    )
+                  }
+                />
+              </div>
             </div>
-            <div className="menuButtons">
-              <button className="btn btnPrimary" onClick={startTutorial}>
-                Start Tutorial
-              </button>
+
+            <div className="menuButtons" style={{ marginTop: 18 }}>
               <button
-                className="btn btnSecondary"
-                onClick={continueGame}
-                disabled={!hasProgress}
+                className="btn btnPrimary"
+                onClick={() =>
+                  setState((s) => ({
+                    ...s,
+                    ui: { ...s.ui, settingsOpen: false },
+                  }))
+                }
               >
-                Continue
-              </button>
-              <button className="btn btnDanger" onClick={doReset}>
-                Reset Save
-              </button>
-              <button
-                className="btn btnGhost"
-                onClick={replayIntro}
-                style={{ fontSize: 12 }}
-              >
-                Replay Intro
+                CLOSE
               </button>
             </div>
           </div>
