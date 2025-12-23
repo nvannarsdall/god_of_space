@@ -54,6 +54,7 @@ function IntroCutscene({ onDone }) {
       if (phaseNow !== phase) {
         setPhase(phaseNow);
       }
+      ctx.restore();
 
       if (!anim.current.seeded) {
         anim.current.seeded = true;
@@ -65,45 +66,48 @@ function IntroCutscene({ onDone }) {
           sp: 0.4 + Math.random() * 0.8,
         }));
       }
+      ctx.lineTo(W, H * 0.48);
+      ctx.lineTo(0, H * 0.48);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
 
       const dawnBlend = clamp(t / 4, 0, 1);
-      const nightBlend = clamp((t - 4) / 3, 0, 1);
-      const returnBlend = clamp((t - 8) / 4, 0, 1);
-      const blackoutIn = clamp((t - 4.2) / 0.35, 0, 1);
-      const blackoutOut = clamp((8 - t) / 0.7, 0, 1);
-      const blackout = Math.min(blackoutIn, blackoutOut);
+      const eclipseBlend = clamp((t - 4) / 4, 0, 1);
+      const emberBlend = clamp((t - 8) / 4, 0, 1);
 
       const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
       skyGrad.addColorStop(
         0,
-        `rgba(${Math.round(12 + 22 * dawnBlend)}, ${Math.round(
-          24 + 20 * dawnBlend
-        )}, ${Math.round(56 - 20 * nightBlend + 18 * returnBlend)}, 1)`
+        `rgba(${Math.round(18 + 10 * dawnBlend)}, ${Math.round(
+          36 + 18 * dawnBlend
+        )}, ${Math.round(72 - 20 * eclipseBlend)}, 1)`
       );
       skyGrad.addColorStop(
         1,
-        `rgba(${Math.round(18 + 36 * dawnBlend)}, ${Math.round(
-          44 - 22 * nightBlend + 20 * returnBlend
-        )}, ${Math.round(72 - 46 * nightBlend + 34 * returnBlend)}, 1)`
+        `rgba(${Math.round(24 + 30 * dawnBlend)}, ${Math.round(
+          60 - 30 * eclipseBlend
+        )}, ${Math.round(96 - 50 * eclipseBlend)}, 1)`
       );
       ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, W, H);
 
-      // Aurora curtains
+      // Aurora ribbon
       ctx.save();
-      ctx.globalAlpha =
-        (0.15 + 0.25 * dawnBlend + 0.2 * returnBlend) * (1 - blackout);
-      for (let x = -40; x <= W + 40; x += 28) {
-        const sway = Math.sin(t * 0.6 + x * 0.03) * 18;
-        const top = H * 0.12 + sway;
-        const bottom = H * (0.45 + 0.06 * Math.sin(t * 0.4 + x * 0.02));
-        const grad = ctx.createLinearGradient(x, top, x, bottom);
-        grad.addColorStop(0, "rgba(120, 230, 194, 0)");
-        grad.addColorStop(0.4, "rgba(120, 230, 194, 0.55)");
-        grad.addColorStop(1, "rgba(120, 230, 194, 0)");
-        ctx.fillStyle = grad;
-        ctx.fillRect(x + sway * 0.2, top, 18, bottom - top);
+      ctx.globalAlpha = 0.25 + 0.3 * dawnBlend;
+      ctx.fillStyle = "#78e6c2";
+      ctx.beginPath();
+      ctx.moveTo(0, H * 0.35);
+      for (let x = 0; x <= W; x += 20) {
+        const wave =
+          Math.sin(x * 0.02 + t * 0.7) * 8 +
+          Math.cos(x * 0.01 - t * 0.4) * 5;
+        ctx.lineTo(x, H * 0.35 + wave);
       }
+      ctx.lineTo(W, H * 0.48);
+      ctx.lineTo(0, H * 0.48);
+      ctx.closePath();
+      ctx.fill();
       ctx.restore();
 
       // Stars
@@ -111,60 +115,10 @@ function IntroCutscene({ onDone }) {
       ctx.fillStyle = "#e6f5ff";
       anim.current.stars.forEach((s) => {
         const twinkle = 0.35 + 0.65 * Math.abs(Math.sin(t * s.sp + s.tw));
-        let starPresence = 0.6;
-        if (t >= 4 && t < 8) {
-          starPresence = 0;
-        } else if (t >= 8) {
-          starPresence = 0.1 + 0.85 * returnBlend;
-        }
-        ctx.globalAlpha = twinkle * starPresence;
+        ctx.globalAlpha = twinkle * (0.4 + 0.6 * eclipseBlend);
         ctx.fillRect(Math.round(s.x), Math.round(s.y), s.r, s.r);
       });
       ctx.restore();
-
-      // The Veil descends, swallowing the stars
-      if (t > 3.6 && t < 8.2) {
-        const fall = clamp((t - 3.6) / 3.4, 0, 1);
-        const veilY = H * (0.05 + 0.7 * fall);
-        ctx.save();
-        ctx.globalAlpha = 0.78 + 0.18 * fall;
-        const veilGrad = ctx.createLinearGradient(0, 0, 0, veilY);
-        veilGrad.addColorStop(0, "rgba(6, 8, 16, 0.9)");
-        veilGrad.addColorStop(1, "rgba(6, 8, 16, 0)");
-        ctx.fillStyle = veilGrad;
-        ctx.fillRect(0, 0, W, veilY);
-        ctx.restore();
-
-        ctx.save();
-        ctx.globalAlpha = 0.28 + 0.4 * fall;
-        ctx.fillStyle = "#0a0f22";
-        for (let x = -10; x <= W + 20; x += 26) {
-          const offset = Math.sin(t * 1.6 + x * 0.09) * 8;
-          ctx.fillRect(x, veilY + offset, 20, 8);
-        }
-        ctx.restore();
-
-        ctx.save();
-        ctx.globalAlpha = 0.35 * fall;
-        ctx.strokeStyle = "#151a31";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(0, veilY);
-        for (let x = 0; x <= W; x += 24) {
-          const offset = Math.cos(t * 1.4 + x * 0.05) * 10;
-          ctx.lineTo(x, veilY + offset);
-        }
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      if (blackout > 0) {
-        ctx.save();
-        ctx.globalAlpha = 0.95 * blackout;
-        ctx.fillStyle = "#05060b";
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-      }
 
       // Horizon layers
       const groundY = H * 0.72;
@@ -184,21 +138,27 @@ function IntroCutscene({ onDone }) {
       ctx.fillStyle = "#0b0d18";
       pixelRect(0, groundY, W, H - groundY, "#0b0d18");
 
-      // Village glow
-      const glow = 0.15 + 0.35 * returnBlend;
+      // Sigil core
       ctx.save();
-      ctx.globalAlpha = glow;
-      ctx.fillStyle = "#ffcc8a";
-      for (let i = 0; i < 10; i++) {
-        const x = 50 + i * 55 + (i % 2) * 10;
-        const y = groundY + 18 + (i % 3) * 4;
-        ctx.fillRect(x, y, 6, 6);
-      }
+      const pulse = 1 + 0.05 * Math.sin(t * 2.4);
+      const coreX = W / 2;
+      const coreY = H * 0.5;
+      ctx.translate(coreX, coreY);
+      ctx.scale(pulse, pulse);
+      ctx.globalAlpha = 0.7 + 0.3 * emberBlend;
+      ctx.strokeStyle = `rgba(255, 210, 160, ${0.6 + 0.4 * emberBlend})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 26, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, 40, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.restore();
 
       // Embers rising
-      if (returnBlend > 0) {
-        if (Math.random() < 0.5 + returnBlend * 0.9) {
+      if (emberBlend > 0) {
+        if (Math.random() < 0.6 + emberBlend * 0.8) {
           anim.current.embers.push({
             x: W / 2 + (Math.random() - 0.5) * 140,
             y: groundY + 10,
@@ -231,14 +191,11 @@ function IntroCutscene({ onDone }) {
         ctx.shadowOffsetY = 0;
       };
 
-      if (t > 0.8 && t < 4)
-        drawText(`WE HONORED ${GOD_NAME}`, H / 3);
+      if (t > 0.8 && t < 4) drawText("THE VEIL ONCE SHIMMERED", H / 3);
       if (t > 4.2 && t < 8)
-        drawText("THE VEIL FELL, STARS WENT DARK", H / 3, "#f2b97d");
-      if (t > 8.2 && t < 11)
-        drawText(`${GOD_NAME} STIRS AS THE SKY RETURNS`, H / 3, "#f5e1c5");
-      if (t >= 11)
-        drawText("VILLAGE AND GOD RISE TOGETHER", H / 3, "#f5e1c5");
+        drawText("LIGHT BENT INTO SILENCE", H / 3, "#f2b97d");
+      if (t > 8.2)
+        drawText("FROM STILLNESS, A SPARK", H / 3, "#f5e1c5");
 
       rafRef.current = requestAnimationFrame(loop);
     };
