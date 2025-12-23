@@ -336,39 +336,6 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
           }
         }
 
-      // Mountains (Solid Color - Fixes the "gliding" transparency issue)
-      ctx.fillStyle = "#111218";
-      ctx.beginPath();
-      ctx.moveTo(0, groundY);
-      for (let x = 0; x <= W; x += 8) {
-        ctx.lineTo(x, groundY - 8 - Math.abs(Math.sin(x * 0.04)) * 12);
-      }
-      ctx.lineTo(W, H);
-      ctx.lineTo(0, H);
-      ctx.fill();
-
-      // Foreground Ground
-      ctx.fillStyle = "#0b0a10";
-      ctx.fillRect(0, groundY, W, H - groundY);
-      // Horizon Line
-      ctx.fillStyle = "#333544";
-      ctx.fillRect(0, groundY, W, 2);
-
-      // 4. ENTITIES
-      const huts = st.village.huts || 0;
-      const temples = st.village.temples || 0;
-
-      const lit = st.devotion > 0 && Math.sin(t * 2) > 0;
-      // Main Hut (Y + 4 to sit on ground)
-      drawHouse(W * 0.25, groundY + 4, 2.0, lit);
-
-      for (let i = 0; i < Math.min(huts, 12); i++) {
-        const hx = W * (0.35 + i * 0.05);
-        const hy = groundY + 6 + (i % 2) * 4;
-        drawHouse(hx, hy, 1.8, false);
-      }
-
-      if (!isSkyMode) {
         // 3. GROUND (Made slightly lighter to ensure visibility)
         const groundY = Math.floor(H * 0.75);
 
