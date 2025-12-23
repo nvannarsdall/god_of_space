@@ -14,382 +14,411 @@ import {
   saveState,
 } from "./game/state";
 import TutorialOverlay from "./tutorial/TutorialOverlay";
-import ConstellationTree from "./constellations/ConstellationTree";
 import { buildTutorialSteps } from "./tutorial/tutorialData";
 
 /* --- INTRO CUTSCENE --- */
+
 function IntroCutscene({ onDone }) {
-  const [phase, setPhase] = useState(0);
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
-  const GOD_NAME = "Astrael";
+  const [phase, setPhase] = useState("playing"); // playing | done
+
+  // Timing (seconds)
   const TIMING = {
-    flashStart: 3.2,
-    flashEnd: 5.4,
-    darkStart: 4.4,
-    darkEnd: 10.5,
-    vanishStart: 10.5,
-    vanishEnd: 18.5,
-    ctaStart: 21.5,
+    fadeIn: 0.8,
+    line1: [0.8, 4.2],
+    line2: [4.2, 7.8],
+    line3: [7.8, 11.2],
+    line4: [11.2, 15.6],
+    line5: [15.6, 19.0],
+    fallStart: 8.4,
+    impactAt: 10.1,
+    flashDur: 0.2,
+    bloomDur: 0.8,
+    cutsceneEnd: 21.0,
   };
 
   const anim = useRef({
     start: 0,
     stars: [],
     embers: [],
-    dust: [],
-    moon: null,
-    seeded: false,
+    shards: [],
+    didImpact: false,
   });
 
   useEffect(() => {
-    const c = canvasRef.current;
-    if (!c) return;
-    const ctx = c.getContext("2d");
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    // High-Res Pixel Canvas
-    const W = 640;
-    const H = 360;
-    c.width = W;
-    c.height = H;
+    const ctx = canvas.getContext("2d");
+    const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
 
-    const pixelRect = (x, y, w, h, col) => {
-      ctx.fillStyle = col;
-      ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+    const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width * DPR);
+      canvas.height = Math.floor(rect.height * DPR);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     };
 
-    const drawMonolith = (x, y, scale = 3.0, lit = true) => {
-      const palette = lit
-        ? {
-            outline: "#15151f",
-            base: "#2c3244",
-            core: "#6f7fb4",
-            glow: "#ffe0b5",
-            trim: "#949ec1",
-          }
-        : {
-            outline: "#0b0c12",
-            base: "#1c1f2d",
-            core: "#394059",
-            glow: "#9aa0a8",
-            trim: "#596176",
-          };
-      const width = 28;
-      const height = 40;
-      const dx = Math.floor(x - (width * scale) / 2);
-      const dy = Math.floor(y - height * scale);
-      const s = scale;
-      const fill = (sx, sy, sw, sh, col) => {
-        ctx.fillStyle = col;
-        ctx.fillRect(dx + sx * s, dy + sy * s, sw * s, sh * s);
+    const seedStars = (W, H) => {
+      const count = Math.floor((W * H) / 16000);
+      anim.current.stars = Array.from({ length: count }, () => ({
+        x: Math.random() * W,
+        y: Math.random() * H * 0.75,
+        a: 0.25 + Math.random() * 0.75,
+        tw: Math.random() * 6.0,
+      }));
+    };
+
+    resize();
+    seedStars(canvas.clientWidth, canvas.clientHeight);
+
+    const onResize = () => {
+      resize();
+      seedStars(canvas.clientWidth, canvas.clientHeight);
+    };
+    window.addEventListener("resize", onResize);
+
+    const drawText = (ctx2, W, H, text, y, color = "#f4e6cf") => {
+      // Centered, auto-fit + wrap (never cropped).
+      ctx2.save();
+      ctx2.setTransform(1, 0, 0, 1, 0, 0);
+      ctx2.textAlign = "center";
+      ctx2.textBaseline = "middle";
+
+      const maxW = W * 0.88;
+      const words = String(text).split(" ");
+
+      const wrap2 = (size) => {
+        ctx2.font = `${size}px "Press Start 2P", monospace`;
+        if (ctx2.measureText(text).width <= maxW) return [text];
+
+        let line1 = "";
+        let i = 0;
+        for (; i < words.length; i++) {
+          const test = line1 ? `${line1} ${words[i]}` : words[i];
+          if (ctx2.measureText(test).width <= maxW || !line1) line1 = test;
+          else break;
+        }
+        const line2 = words.slice(i).join(" ");
+        return line2 ? [line1, line2] : [line1];
       };
 
-      fill(2, 30, 24, 7, palette.base);
-      fill(2, 30, 24, 1, palette.outline);
-      fill(2, 36, 24, 1, palette.outline);
-      fill(2, 30, 1, 7, palette.outline);
-      fill(25, 30, 1, 7, palette.outline);
+      let size = Math.max(14, Math.floor(W / 28));
+      let lines = wrap2(size);
+      while (size > 10) {
+        ctx2.font = `${size}px "Press Start 2P", monospace`;
+        const widest = Math.max(...lines.map((l) => ctx2.measureText(l).width));
+        if (widest <= maxW) break;
+        size -= 2;
+        lines = wrap2(size);
+      }
 
-      fill(9, 6, 10, 24, palette.core);
-      fill(9, 6, 10, 1, palette.outline);
-      fill(9, 29, 10, 1, palette.outline);
-      fill(9, 6, 1, 24, palette.outline);
-      fill(18, 6, 1, 24, palette.outline);
-      fill(10, 10, 8, 2, palette.trim);
-      fill(11, 13, 6, 2, palette.trim);
-      fill(12, 16, 4, 2, palette.trim);
-      fill(13, 19, 2, 6, palette.glow);
-      fill(12, 25, 4, 2, palette.glow);
+      const gap = size * 1.35;
+
+      ctx2.fillStyle = "rgba(0,0,0,0.55)";
+      lines.forEach((ln, i) => {
+        const yy = y + (i - (lines.length - 1) / 2) * gap;
+        ctx2.fillText(ln, W / 2 + 3, yy + 3);
+      });
+
+      ctx2.fillStyle = color;
+      lines.forEach((ln, i) => {
+        const yy = y + (i - (lines.length - 1) / 2) * gap;
+        ctx2.fillText(ln, W / 2, yy);
+      });
+
+      ctx2.restore();
+    };
+
+    const drawArtifact = (ctx2, x, y, scale = 1.55, pulse = 0) => {
+      const dx = Math.floor(x - 14 * scale);
+      const dy = Math.floor(y - 28 * scale);
+
+      const fill = (sx, sy, sw, sh, col, a = 1) => {
+        ctx2.save();
+        ctx2.globalAlpha = a;
+        ctx2.fillStyle = col;
+        ctx2.fillRect(dx + sx * scale, dy + sy * scale, sw * scale, sh * scale);
+        ctx2.restore();
+      };
+
+      fill(9, 2, 10, 2, "#3b4362");
+      fill(7, 4, 14, 4, "#2b3146");
+      fill(6, 8, 16, 14, "#24283a");
+      fill(7, 22, 14, 4, "#3b4362");
+
+      fill(9, 2, 10, 1, "#11121a");
+      fill(7, 4, 14, 1, "#11121a");
+      fill(6, 8, 16, 1, "#11121a");
+      fill(6, 21, 16, 1, "#11121a");
+      fill(7, 25, 14, 1, "#11121a");
+      fill(6, 8, 1, 18, "#11121a");
+      fill(21, 8, 1, 18, "#11121a");
+
+      fill(12, 7, 1, 12, "#6f7fb4", 0.7);
+      fill(15, 9, 1, 10, "#6f7fb4", 0.55);
+
+      const a = 0.35 + 0.55 * pulse;
+      fill(12, 12, 4, 6, "#b9d7ff", a);
+      fill(11, 15, 6, 2, "#ffe0b5", 0.25 + 0.55 * pulse);
+    };
+
+    const spawnImpact = (W, groundY) => {
+      const ox = W * 0.5;
+      const oy = groundY + 6;
+
+      const N = 90;
+      for (let i = 0; i < N; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const sp = 6.0 + Math.random() * 12.0;
+        anim.current.shards.push({
+          x: ox,
+          y: oy,
+          vx: Math.cos(ang) * sp,
+          vy: Math.sin(ang) * sp * 0.55 - (8.0 + Math.random() * 6.0),
+          life: 80 + Math.random() * 50,
+          sz: 1 + Math.floor(Math.random() * 2),
+          hot: Math.random() < 0.55,
+        });
+      }
+
+      const E = 38;
+      for (let i = 0; i < E; i++) {
+        anim.current.embers.push({
+          x: ox + (Math.random() - 0.5) * 240,
+          y: oy + (Math.random() - 0.5) * 12,
+          vy: 2.2 + Math.random() * 4.2,
+          life: 70 + Math.random() * 60,
+        });
+      }
     };
 
     const loop = (now) => {
       if (!anim.current.start) anim.current.start = now;
       const t = (now - anim.current.start) / 1000;
 
-      const phaseNow =
-        t >= TIMING.ctaStart ? 3 : t >= TIMING.vanishStart ? 2 : t >= 6 ? 1 : 0;
-      if (phaseNow !== phase) {
-        setPhase(phaseNow);
-      }
+      const W = canvas.clientWidth;
+      const H = canvas.clientHeight;
 
-      if (!anim.current.seeded) {
-        anim.current.seeded = true;
-        anim.current.stars = Array.from({ length: 90 }, () => ({
-          x: Math.random() * W,
-          y: Math.random() * H * 0.7,
-          r: 1 + Math.random() * 1.5,
-          tw: Math.random() * Math.PI * 2,
-          sp: 0.4 + Math.random() * 0.8,
-          fadeAt: 6 + Math.random() * 4,
-          fadeDur: 0.6 + Math.random() * 0.8,
-        }));
-        anim.current.moon = {
-          x: W * 0.72,
-          y: H * 0.22,
-          r: 16,
-          fadeAt: 9.5,
-          fadeDur: 1.4,
-        };
-        anim.current.dust = Array.from({ length: 120 }, () => ({
-          x: Math.random() * W,
-          y: H * 0.6 + Math.random() * H * 0.4,
-          sp: 0.2 + Math.random() * 0.6,
-          tw: Math.random() * Math.PI * 2,
-        }));
-      }
+      if (phase !== "done" && t >= TIMING.cutsceneEnd) setPhase("done");
 
-      const flashStart = TIMING.flashStart;
-      const flashEnd = TIMING.flashEnd;
-      const darkStart = TIMING.darkStart;
-      const darkEnd = TIMING.darkEnd;
-      const darkBlend = clamp((t - darkStart) / (darkEnd - darkStart), 0, 1);
-      const dayBlend = 1 - darkBlend;
-      const emberBlend = clamp((t - 10.5) / 4, 0, 1);
-      const lerp = (a, b, amt) => Math.round(a + (b - a) * amt);
+      ctx.clearRect(0, 0, W, H);
 
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
-      const topR = lerp(84, 8, darkBlend);
-      const topG = lerp(164, 10, darkBlend);
-      const topB = lerp(232, 24, darkBlend);
-      const botR = lerp(168, 4, darkBlend);
-      const botG = lerp(206, 6, darkBlend);
-      const botB = lerp(248, 18, darkBlend);
-      skyGrad.addColorStop(0, `rgb(${topR}, ${topG}, ${topB})`);
-      skyGrad.addColorStop(1, `rgb(${botR}, ${botG}, ${botB})`);
-      ctx.fillStyle = skyGrad;
+      const sky = ctx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, "#0a0b12");
+      sky.addColorStop(1, "#070812");
+      ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, H);
 
-      if (t >= flashStart && t <= flashEnd) {
-        const flashT = (t - flashStart) / (flashEnd - flashStart);
-        const flicker = Math.abs(Math.sin(flashT * Math.PI * 10));
-        ctx.save();
-        ctx.globalAlpha = 0.35 + 0.5 * flicker;
-        ctx.fillStyle = "#f9f3ff";
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-      }
+      ctx.save();
+      anim.current.stars.forEach((s) => {
+        const tw = 0.6 + 0.4 * Math.sin(t * s.tw + s.x * 0.01);
+        ctx.globalAlpha = s.a * tw;
+        ctx.fillStyle = "#cfd6ff";
+        ctx.fillRect(Math.floor(s.x), Math.floor(s.y), 1, 1);
+      });
+      ctx.restore();
 
-      // Stars
-      if (darkBlend > 0.1) {
-        ctx.save();
-        ctx.fillStyle = "#e6f5ff";
-        const nightAlpha = clamp((darkBlend - 0.1) / 0.9, 0, 1);
-        anim.current.stars.forEach((s) => {
-          const twinkle = 0.35 + 0.65 * Math.abs(Math.sin(t * s.sp + s.tw));
-          const fadeOut = 1 - clamp((t - s.fadeAt) / s.fadeDur, 0, 1);
-          ctx.globalAlpha = twinkle * nightAlpha * fadeOut;
-          if (ctx.globalAlpha > 0.02) {
-            ctx.fillRect(Math.round(s.x), Math.round(s.y), s.r, s.r);
-          }
-        });
-        ctx.restore();
-      }
-
-      if (anim.current.moon && darkBlend > 0.15) {
-        const { x, y, r, fadeAt, fadeDur } = anim.current.moon;
-        const moonFade = 1 - clamp((t - fadeAt) / fadeDur, 0, 1);
-        const moonAlpha = clamp((darkBlend - 0.15) / 0.85, 0, 1) * moonFade;
-        if (moonAlpha > 0.02) {
-          ctx.save();
-          ctx.globalAlpha = moonAlpha;
-          ctx.fillStyle = "#f3e6c8";
-          ctx.beginPath();
-          ctx.arc(x, y, r, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        }
-      }
-
-      // Horizon layers
-      const groundY = H * 0.72;
-      if (dayBlend > 0.05) {
-        const haze = ctx.createLinearGradient(0, groundY - 40, 0, groundY + 20);
-        haze.addColorStop(0, `rgba(255, 215, 175, ${0.2 * dayBlend})`);
-        haze.addColorStop(1, "rgba(255, 215, 175, 0)");
-        ctx.save();
-        ctx.fillStyle = haze;
-        ctx.fillRect(0, groundY - 50, W, 60);
-        ctx.restore();
-      }
-      ctx.fillStyle = "#111625";
+      const ridgeY = H * 0.68;
+      ctx.fillStyle = "#070814";
       ctx.beginPath();
-      ctx.moveTo(0, groundY);
-      ctx.lineTo(W * 0.2, groundY - 30);
-      ctx.lineTo(W * 0.4, groundY - 12);
-      ctx.lineTo(W * 0.6, groundY - 34);
-      ctx.lineTo(W * 0.8, groundY - 18);
-      ctx.lineTo(W, groundY - 26);
+      ctx.moveTo(0, ridgeY + 40);
+      ctx.lineTo(W * 0.28, ridgeY + 10);
+      ctx.lineTo(W * 0.55, ridgeY + 45);
+      ctx.lineTo(W * 0.78, ridgeY + 20);
+      ctx.lineTo(W, ridgeY + 35);
       ctx.lineTo(W, H);
       ctx.lineTo(0, H);
       ctx.closePath();
       ctx.fill();
 
-      ctx.fillStyle = "#090b16";
-      pixelRect(0, groundY, W, H - groundY, "#090b16");
-      if (darkBlend < 0.6) {
+      const groundY = ridgeY + 52;
+      ctx.fillStyle = "#050510";
+      ctx.fillRect(0, groundY, W, H - groundY);
+
+      const fallT = clamp01(
+        (t - TIMING.fallStart) / (TIMING.impactAt - TIMING.fallStart)
+      );
+      const gCurve = fallT * fallT; // accelerate into impact
+      const startY = -H * 0.25;
+      const endY = groundY + 6;
+      const artifactY = startY + (endY - startY) * gCurve;
+
+      const pulse =
+        t >= TIMING.impactAt
+          ? 0.5 + 0.5 * Math.sin((t - TIMING.impactAt) * 5.0)
+          : 0;
+      const pulse01 =
+        t >= TIMING.impactAt ? clamp01((t - TIMING.impactAt) / 1.4) * pulse : 0;
+
+      if (t >= TIMING.fallStart) {
+        const gx = W * 0.5;
+        const gy = artifactY - 26;
+        const r1 = 90;
+        const g = ctx.createRadialGradient(gx, gy, 5, gx, gy, r1);
+        const a0 = 0.05 + 0.1 * pulse01;
+        const a1 = 0.02 + 0.06 * pulse01;
+        g.addColorStop(0, `rgba(255,210,170,${a0})`);
+        g.addColorStop(0.35, `rgba(255,210,170,${a1})`);
+        g.addColorStop(1, "rgba(0,0,0,0)");
         ctx.save();
-        ctx.globalAlpha = 0.35 * (1 - darkBlend);
-        ctx.fillStyle = "#5b6380";
-        ctx.fillRect(0, groundY - 1, W, 2);
+        ctx.globalCompositeOperation = "screen";
+        ctx.fillStyle = g;
+        ctx.fillRect(gx - r1, gy - r1, r1 * 2, r1 * 2);
         ctx.restore();
+
+        drawArtifact(ctx, W * 0.5, artifactY, 1.55, pulse01);
       }
 
-      // Monolith & lighting
-      const lit = darkBlend > 0.4;
-      drawMonolith(W * 0.5, groundY + 18, 3.3, lit);
+      if (t >= TIMING.impactAt) {
+        const dt = t - TIMING.impactAt;
 
-      // Tighter, less "screen-wide" glow (fixes radial wash-out)
-      ctx.save();
-      const glowX = W * 0.5;
-      const glowY = groundY - 28;
-      const r0 = 6;
-      const r1 = 140;
-      const monolithGlow = ctx.createRadialGradient(
-        glowX,
-        glowY,
-        r0,
-        glowX,
-        glowY,
-        r1
-      );
-      if (lit) {
-        monolithGlow.addColorStop(0, "rgba(255,208,160,0.18)");
-        monolithGlow.addColorStop(0.35, "rgba(255,208,160,0.06)");
-      } else {
-        monolithGlow.addColorStop(0, "rgba(180,190,220,0.11)");
-        monolithGlow.addColorStop(0.35, "rgba(180,190,220,0.04)");
-      }
-      monolithGlow.addColorStop(1, "rgba(255,208,160,0)");
-      ctx.globalCompositeOperation = "screen";
-      ctx.fillStyle = monolithGlow;
-      ctx.fillRect(
-        Math.floor(glowX - r1),
-        Math.floor(glowY - r1),
-        Math.ceil(r1 * 2),
-        Math.ceil(r1 * 2)
-      );
-      ctx.restore();
-
-      // Gentle vignette so the sky doesn't get washed out
-      ctx.save();
-      const vig = ctx.createRadialGradient(
-        W * 0.5,
-        H * 0.55,
-        60,
-        W * 0.5,
-        H * 0.55,
-        520
-      );
-      vig.addColorStop(0, "rgba(0,0,0,0)");
-      vig.addColorStop(1, `rgba(0,0,0,${0.38 * darkBlend})`);
-      ctx.fillStyle = vig;
-      ctx.fillRect(0, 0, W, H);
-      ctx.restore();
-
-      // Embers rising
-      if (emberBlend > 0) {
-        if (Math.random() < 0.6 + emberBlend * 0.8) {
-          anim.current.embers.push({
-            x: W / 2 + (Math.random() - 0.5) * 140,
-            y: groundY + 10,
-            vy: 0.6 + Math.random() * 1.2,
-            life: 60 + Math.random() * 40,
-          });
+        if (!anim.current.didImpact) {
+          anim.current.didImpact = true;
+          spawnImpact(W, groundY);
         }
-        ctx.fillStyle = "#ffb566";
-        for (let i = anim.current.embers.length - 1; i >= 0; i--) {
-          const e = anim.current.embers[i];
-          e.y -= e.vy;
-          e.life -= 1;
-          ctx.globalAlpha = Math.max(0, e.life / 100);
-          ctx.fillRect(Math.round(e.x), Math.round(e.y), 2, 2);
-          if (e.life <= 0 || e.y < 0) anim.current.embers.splice(i, 1);
+
+        if (dt <= TIMING.flashDur) {
+          const a = 1 - dt / TIMING.flashDur;
+          ctx.save();
+          ctx.globalAlpha = 0.95 * a;
+          ctx.fillStyle = "rgba(255,248,235,1)";
+          ctx.fillRect(0, 0, W, H);
+          ctx.restore();
         }
-        ctx.globalAlpha = 1;
+
+        if (dt <= TIMING.bloomDur) {
+          const a = 1 - dt / TIMING.bloomDur;
+          const bx = W * 0.5;
+          const by = groundY + 6;
+          const br = 70 + dt * 420;
+          const gg = ctx.createRadialGradient(bx, by, 10, bx, by, br);
+          gg.addColorStop(0, "rgba(255,250,240,1)");
+          gg.addColorStop(0.22, "rgba(255,210,165,0.85)");
+          gg.addColorStop(0.55, "rgba(255,170,120,0.22)");
+          gg.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.save();
+          ctx.globalCompositeOperation = "screen";
+          ctx.globalAlpha = 0.75 * a;
+          ctx.fillStyle = gg;
+          ctx.fillRect(bx - br, by - br, br * 2, br * 2);
+          ctx.restore();
+        }
       }
 
-      // Dust shimmer near ground
-      if (darkBlend > 0.2) {
+      anim.current.shards = anim.current.shards.filter((p) => p.life > 0);
+      anim.current.shards.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.26;
+        p.vx *= 0.992;
+        p.vy *= 0.992;
+        p.life -= 1;
+
+        const a = clamp01(p.life / 120);
         ctx.save();
-        ctx.fillStyle = "#d9e8ff";
-        anim.current.dust.forEach((d) => {
-          const twinkle = 0.2 + 0.8 * Math.abs(Math.sin(t * d.sp + d.tw));
-          ctx.globalAlpha = twinkle * 0.12 * darkBlend;
-          ctx.fillRect(Math.round(d.x), Math.round(d.y), 1, 1);
-        });
+        ctx.globalAlpha = (p.hot ? 0.9 : 0.55) * a;
+        ctx.strokeStyle = p.hot ? "rgba(255,220,170,1)" : "rgba(200,210,235,1)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(p.x - p.vx * 1.2, p.y - p.vy * 1.2);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        ctx.fillStyle = p.hot ? "rgba(255,245,235,1)" : "rgba(220,235,255,1)";
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), p.sz, p.sz);
         ctx.restore();
-      }
+      });
 
-      // 6. Text
-      const drawText = (txt, y, col = "#fff") => {
-        ctx.fillStyle = col;
-        ctx.font = '20px "Press Start 2P", monospace';
-        ctx.textAlign = "center";
-        ctx.shadowColor = "#000";
-        ctx.shadowOffsetX = 3;
-        ctx.shadowOffsetY = 3;
-        ctx.fillText(txt, W / 2, y);
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-      };
+      anim.current.embers = anim.current.embers.filter((e) => e.life > 0);
+      anim.current.embers.forEach((e) => {
+        e.y -= e.vy;
+        e.vy *= 0.985;
+        e.life -= 1;
+        const a = clamp01(e.life / 120);
+        ctx.save();
+        ctx.globalAlpha = 0.55 * a;
+        ctx.fillStyle = "rgba(255,200,140,1)";
+        ctx.fillRect(Math.round(e.x), Math.round(e.y), 2, 2);
+        ctx.restore();
+      });
 
-      if (t > 0.8 && t < 4.2) drawText("THE SKY HELD ITS BREATH", H / 3);
-      if (t > 4.4 && t < 9.2)
-        drawText("A FLASH SHATTERED THE DAY", H / 3, "#f2b97d");
-      if (t > 9.2 && t < 13.5)
-        drawText("THE HORIZON BLED GOLD", H / 3, "#f5d3a7");
-      if (t > 13.5 && t < 18.0)
-        drawText("THE MONOLITH AWOKE", H / 3, "#d9e8ff");
-      if (t > 18.0) drawText(`WHISPER THE NAME: ${GOD_NAME}`, H / 3, "#f5e1c5");
+      const y = H * 0.28;
+      const fade = clamp01((t - 0.4) / TIMING.fadeIn);
+      ctx.save();
+      ctx.globalAlpha = fade;
+      if (t >= TIMING.line1[0] && t < TIMING.line1[1])
+        drawText(ctx, W, H, "A GOD HAS FALLEN.", y);
+      if (t >= TIMING.line2[0] && t < TIMING.line2[1])
+        drawText(ctx, W, H, "ITS POWER IS SHATTERED.", y, "#f2b97d");
+      if (t >= TIMING.line3[0] && t < TIMING.line3[1])
+        drawText(ctx, W, H, "A RELIC IS CAST DOWN TO THE WORLD.", y, "#f5d3a7");
+      if (t >= TIMING.line4[0] && t < TIMING.line4[1])
+        drawText(ctx, W, H, "MORTALS CAN RESTORE WHAT WAS LOST.", y, "#d9e8ff");
+      if (t >= TIMING.line5[0])
+        drawText(ctx, W, H, "BEGIN AT THE DUSK.", y, "#f5e1c5");
+      ctx.restore();
 
       rafRef.current = requestAnimationFrame(loop);
     };
 
     rafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, []);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [phase]);
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 99999,
-        background: "#05040a",
-      }}
-    >
-      <canvas
-        ref={canvasRef}
-        style={{ width: "100%", height: "100%", imageRendering: "pixelated" }}
-      />
+    <div className="introCanvasWrap">
+      <canvas ref={canvasRef} className="introCanvas" />
 
-      {phase === 3 && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: "20%",
-            left: 0,
-            right: 0,
-            display: "flex",
-            justifyContent: "center",
-            animation: "fadeIn 2s ease",
-          }}
-        >
+      {phase === "done" && (
+        <div className="introOverlay">
+          <div className="introBrand">GOD OF SPACE</div>
+          <div className="introSub">
+            A nameless god. A village. A sky to rebuild.
+          </div>
           <button
             className="btn btnPrimary"
-            style={{ fontSize: "16px", padding: "24px" }}
-            onClick={onDone}
+            onClick={() => {
+              setPhase("done");
+              onDone?.();
+            }}
           >
             ENTER THE DUSK
           </button>
         </div>
       )}
-      <style>{`@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }`}</style>
+
+      <style>{`
+        .introCanvasWrap{position:relative;width:100%;height:100%;overflow:hidden;background:#000;}
+        .introCanvas{width:100%;height:100%;display:block;image-rendering:pixelated;}
+        .introOverlay{
+          position:absolute;left:50%;bottom:34px;transform:translateX(-50%);
+          display:flex;flex-direction:column;align-items:center;gap:10px;
+          background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.14);
+          box-shadow:0 10px 30px rgba(0,0,0,0.6);
+          padding:44px 34px;border-radius:10px;backdrop-filter:blur(2px);
+        }
+        .introBrand{font-family:"Press Start 2P", monospace;font-size:28px;letter-spacing:1px;color:#f4e6cf;}
+        .introSub{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+          font-size:14px;color:rgba(244,230,207,0.85);text-align:center;max-width:520px;line-height:1.4;}
+        .btn{cursor:pointer;border:none}
+        .btnPrimary{
+          font-family:"Press Start 2P", monospace;
+          font-size:20px;padding:14px 26px;border-radius:6px;
+          background:#4aa3ff;color:#08101a;border:2px solid rgba(255,255,255,0.35);
+          box-shadow:0 8px 0 rgba(0,0,0,0.35);
+        }
+        .btnPrimary:active{transform:translateY(2px);box-shadow:0 6px 0 rgba(0,0,0,0.35);}
+      `}</style>
     </div>
   );
 }
-
-/* --- 2. MAIN APP --- */
 export default function App() {
   const [state, setState] = useState(() => {
     const loaded = loadState();
@@ -397,7 +426,7 @@ export default function App() {
     return migrateState(merged);
   });
 
-  const showIntro = !state?.ui?.introSeen;
+  const showIntro = !state.ui.introSeen && !state.ui?.tutorialActive;
   const computed = useMemo(() => compute(state), [state]);
   const [toast, setToast] = useState(null);
 
@@ -500,15 +529,6 @@ export default function App() {
           devotion: s.devotion + c.devotionRate,
           whispers: s.whispers + (c.omenRate || 0),
           stardust: s.stardust,
-          village: {
-            ...s.village,
-            prosperity: (s.village?.prosperity || 0) + (c.prosperityRate || 0),
-          },
-          constellations: {
-            ...(s.constellations || { unlocked: [], points: 0 }),
-            points:
-              (s.constellations?.points || 0) + (c.constellationPointRate || 0),
-          },
         });
       });
     }, step);
@@ -562,10 +582,7 @@ export default function App() {
       const s = migrateState(s0);
       if (tutorialOn && !tutorialAllows.world) return s;
       const c = compute(s);
-      const gain = Math.max(
-        0.25,
-        (c.omenClickGain || 1) * (c.villageClickMult || 1)
-      );
+      const gain = Math.max(0.25, c.omenClickGain || 1);
       return { ...s, whispers: s.whispers + gain };
     });
   };
@@ -575,8 +592,7 @@ export default function App() {
       const s = migrateState(s0);
       if (tutorialOn && !tutorialAllows.world) return s;
       const c = compute(s);
-      const base =
-        0.2 * c.telescopeBonus * c.starlightBonus * (c.skyClickMult || 1);
+      const base = 0.2 * c.telescopeBonus * c.starlightBonus;
       const stardust = s.stardust + base;
       return migrateState({ ...s, stardust });
     });
@@ -868,26 +884,6 @@ export default function App() {
             <div className="statBox">
               <div className="rowBetween">
                 <div className="statLabel">
-                  <span
-                    className="ico"
-                    style={{ display: "inline-block", width: 14 }}
-                  >
-                    ✧
-                  </span>{" "}
-                  Prosperity
-                </div>
-                <div className="statValueSmall">
-                  {fmt(state.village?.prosperity || 0)}
-                </div>
-              </div>
-              <div className="statSub">
-                Rate: {fmt(computed.prosperityRate || 0)}/s • Boosts Reverence
-                yield
-              </div>
-            </div>
-            <div className="statBox">
-              <div className="rowBetween">
-                <div className="statLabel">
                   <img
                     className="ico"
                     src="/assets/pixel/icon_omens.png"
@@ -1017,16 +1013,6 @@ export default function App() {
               }
             >
               Sky
-            </button>
-            <button
-              className={`tab ${tab === "constellations" ? "tabActive" : ""} ${
-                tutorialOn ? "tabDisabled" : ""
-              } ${!awakened ? "tabDisabled" : ""}`}
-              onClick={() =>
-                !tutorialOn && awakened && setTab("constellations")
-              }
-            >
-              Constellations
             </button>
             <button
               className={`tab ${tab === "codex" ? "tabActive" : ""} ${

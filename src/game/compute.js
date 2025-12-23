@@ -42,7 +42,8 @@ function compute(s) {
   const surgeMult = 1 + festivals * 0.1;
   const surgeEV = 1 + surgeChance * (surgeMult - 1);
 
-  let globalMul = 1 + crown * 0.05;
+  const memory = s.meta?.memory || 0;
+  let globalMul = (1 + crown * 0.05) * (1 + memory * 0.05);
   let devotionRate = s.unlocked.awakened
     ? s.followers * devotionPerFollower * surgeEV * globalMul
     : 0;
@@ -75,8 +76,12 @@ function compute(s) {
   // === CONSTELLATION POINTS (Phase 3) ===
   // Slow, steady trickle that scales with devotion & starlight activity.
   // (This is intentionally gentle; node costs are small.)
+  const cycles = s.meta?.cycles || 0;
   const constellationPointRate = s.unlocked.awakened
-    ? clamp(devotionRate / 1800, 0, 2.5) + 0.01 + 0.005 * temples
+    ? clamp(devotionRate / 1800, 0, 2.5) +
+      0.01 +
+      0.005 * temples +
+      cycles * 0.01
     : 0;
 
   // Apply constellation bonuses (branching synergies)
