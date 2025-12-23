@@ -771,3 +771,27 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
 }
 
 export default WorldCanvas;
+
+// --- Atmospheric entry parameters ---
+const ENTRY_START_Y = -300;
+const GRAVITY = 4200;
+let artifactVelocity = 0;
+let heat = 0;
+
+// --- Plasma flicker + color ramp (white-hot core) ---
+function drawPlasma(ctx, x, y, heat) {
+  const flicker = 0.6 + Math.random() * 0.4;
+  const r = 255;
+  const g = Math.floor(120 + heat * 135);
+  const b = Math.floor(40 + heat * 215);
+
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.shadowBlur = 60 + heat * 120;
+  ctx.shadowColor = `rgba(${r},${g},${b},${0.9 * flicker})`;
+  ctx.fillStyle = `rgb(${r},${g},${b})`;
+  ctx.beginPath();
+  ctx.arc(x, y, 6 + heat * 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
