@@ -617,6 +617,7 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         const temples = st.village.temples || 0;
 
         const lit = st.devotion > 0;
+        const prosperityGlow = clamp((st.village?.prosperity || 0) / 100, 0, 1);
         // Main Hut (Y + 4 to sit on ground)
         drawHouse(W * 0.26, groundY + 6, 2.4, lit);
 
