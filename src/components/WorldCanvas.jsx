@@ -178,6 +178,18 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       }
     };
 
+    const drawShadow = (x, y, rx, ry, alpha = 0.35) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "#050509";
+      ctx.translate(x, y);
+      ctx.scale(rx, ry);
+      ctx.beginPath();
+      ctx.arc(0, 0, 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+
     const drawHouse = (x, y, scale = 2.0, lit = true) => {
       const palette = lit
         ? {
@@ -244,6 +256,56 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       fill(12, 21, 1, 4, palette.outline);
       fill(10, 22, 1, 1, palette.trim);
       fill(11, 23, 1, 1, palette.trim);
+    };
+
+    const drawMonolith = (x, y, scale = 2.6, lit = true) => {
+      const palette = lit
+        ? {
+            outline: "#11121d",
+            base: "#2a2f43",
+            core: "#6e7fb0",
+            glow: "#ffe4b5",
+            trim: "#8a94b8",
+          }
+        : {
+            outline: "#0a0b12",
+            base: "#1a1c2b",
+            core: "#333a52",
+            glow: "#8e8b74",
+            trim: "#464b66",
+          };
+
+      const width = 26;
+      const height = 38;
+      const dx = Math.floor(x - (width * scale) / 2);
+      const dy = Math.floor(y - height * scale);
+      const s = scale;
+
+      const fill = (sx, sy, sw, sh, col) => {
+        ctx.fillStyle = col;
+        ctx.fillRect(dx + sx * s, dy + sy * s, sw * s, sh * s);
+      };
+
+      // Base
+      fill(2, 28, 22, 6, palette.base);
+      fill(2, 28, 22, 1, palette.outline);
+      fill(2, 33, 22, 1, palette.outline);
+      fill(2, 28, 1, 6, palette.outline);
+      fill(23, 28, 1, 6, palette.outline);
+
+      // Pillar
+      fill(8, 6, 10, 22, palette.core);
+      fill(8, 6, 10, 1, palette.outline);
+      fill(8, 27, 10, 1, palette.outline);
+      fill(8, 6, 1, 22, palette.outline);
+      fill(17, 6, 1, 22, palette.outline);
+      fill(9, 10, 8, 2, palette.trim);
+      fill(10, 13, 6, 2, palette.trim);
+      fill(11, 16, 4, 2, palette.trim);
+
+      // Core glow
+      fill(12, 19, 2, 4, palette.glow);
+      fill(11, 23, 4, 2, palette.glow);
     };
 
     const loop = (now) => {
@@ -324,102 +386,174 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
           ctx.fillRect(0, 0, W, H);
         }
       } else {
-        const skyH = H * 0.65;
+        const skyH = H * 0.68;
         for (let y = 0; y < skyH; y += 2) {
           const p = y / skyH;
           if (p < 0.25) {
-            ctx.fillStyle = "#1a1c2c";
+            ctx.fillStyle = "#15192b";
             ctx.fillRect(0, y, W, 2);
           } else if (p < 0.55 && dither(0, y / 2)) {
-            ctx.fillStyle = "#1a1c2c";
+            ctx.fillStyle = "#121726";
+            ctx.fillRect(0, y, W, 2);
+          } else if (p < 0.85 && dither(1, y / 2)) {
+            ctx.fillStyle = "#0e1322";
             ctx.fillRect(0, y, W, 2);
           }
         }
 
-      // Mountains (Solid Color - Fixes the "gliding" transparency issue)
-      ctx.fillStyle = "#111218";
-      ctx.beginPath();
-      ctx.moveTo(0, groundY);
-      for (let x = 0; x <= W; x += 8) {
-        ctx.lineTo(x, groundY - 8 - Math.abs(Math.sin(x * 0.04)) * 12);
-      }
-      ctx.lineTo(W, H);
-      ctx.lineTo(0, H);
-      ctx.fill();
-
-      // Foreground Ground
-      ctx.fillStyle = "#0b0a10";
-      ctx.fillRect(0, groundY, W, H - groundY);
-      // Horizon Line
-      ctx.fillStyle = "#333544";
-      ctx.fillRect(0, groundY, W, 2);
-
-      // 4. ENTITIES
-      const huts = st.village.huts || 0;
-      const temples = st.village.temples || 0;
-
-      const lit = st.devotion > 0 && Math.sin(t * 2) > 0;
-      // Main Hut (Y + 4 to sit on ground)
-      drawHouse(W * 0.25, groundY + 4, 2.0, lit);
-
-      for (let i = 0; i < Math.min(huts, 12); i++) {
-        const hx = W * (0.35 + i * 0.05);
-        const hy = groundY + 6 + (i % 2) * 4;
-        drawHouse(hx, hy, 1.8, false);
-      }
-
-      if (!isSkyMode) {
         // 3. GROUND (Made slightly lighter to ensure visibility)
         const groundY = Math.floor(H * 0.75);
 
         // Mountains (Solid Color - Fixes the "gliding" transparency issue)
-        ctx.fillStyle = "#111218";
+        ctx.fillStyle = "#0d0f1b";
         ctx.beginPath();
         ctx.moveTo(0, groundY);
         for (let x = 0; x <= W; x += 8) {
-          ctx.lineTo(x, groundY - 8 - Math.abs(Math.sin(x * 0.04)) * 12);
+          const ridge = 16 + Math.abs(Math.sin(x * 0.035)) * 18;
+          ctx.lineTo(x, groundY - ridge);
         }
         ctx.lineTo(W, H);
         ctx.lineTo(0, H);
         ctx.fill();
 
+        // Far ridge highlight
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.strokeStyle = "#1f2434";
+        ctx.beginPath();
+        ctx.moveTo(0, groundY - 14);
+        for (let x = 0; x <= W; x += 10) {
+          const ridge = 18 + Math.abs(Math.sin(x * 0.03 + 1.2)) * 14;
+          ctx.lineTo(x, groundY - ridge);
+        }
+        ctx.stroke();
+        ctx.restore();
+
         // Foreground Ground
-        ctx.fillStyle = "#0b0a10";
+        ctx.fillStyle = "#090812";
         ctx.fillRect(0, groundY, W, H - groundY);
         // Horizon Line
-        ctx.fillStyle = "#333544";
+        ctx.fillStyle = "#2a2c3b";
         ctx.fillRect(0, groundY, W, 2);
+
+        // Ember glow in the sky near the horizon
+        const glow = ctx.createRadialGradient(
+          W * 0.5,
+          groundY - 20,
+          10,
+          W * 0.5,
+          groundY - 20,
+          180
+        );
+        glow.addColorStop(0, "rgba(255,196,146,0.2)");
+        glow.addColorStop(1, "rgba(255,196,146,0)");
+        ctx.save();
+        ctx.globalCompositeOperation = "screen";
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, W, groundY + 40);
+        ctx.restore();
 
         // 4. ENTITIES
         const huts = st.village.huts || 0;
         const temples = st.village.temples || 0;
 
-        const lit = st.devotion > 0 && Math.sin(t * 2) > 0;
+        const lit = st.devotion > 0;
         // Main Hut (Y + 4 to sit on ground)
-        drawHouse(W * 0.25, groundY + 4, 2.0, lit);
+        drawShadow(W * 0.26, groundY + 12, 14, 3, 0.45);
+        drawHouse(W * 0.26, groundY + 6, 2.4, lit);
+        if (lit) {
+          ctx.save();
+          const hutGlow = ctx.createRadialGradient(
+            W * 0.26,
+            groundY - 12,
+            8,
+            W * 0.26,
+            groundY - 12,
+            70
+          );
+          hutGlow.addColorStop(0, "rgba(255,220,160,0.22)");
+          hutGlow.addColorStop(1, "rgba(255,220,160,0)");
+          ctx.globalCompositeOperation = "screen";
+          ctx.fillStyle = hutGlow;
+          ctx.fillRect(0, 0, W, H);
+          ctx.restore();
+        }
+
+        // Central monolith (main focal point)
+        drawShadow(W * 0.56, groundY + 14, 22, 4, 0.5);
+        drawMonolith(W * 0.56, groundY + 10, 2.8, lit);
+        if (lit) {
+          ctx.save();
+          ctx.globalCompositeOperation = "screen";
+          const beam = ctx.createLinearGradient(
+            W * 0.56,
+            groundY - 140,
+            W * 0.56,
+            groundY + 36
+          );
+          beam.addColorStop(0, "rgba(255,214,176,0)");
+          beam.addColorStop(0.35, "rgba(255,214,176,0.08)");
+          beam.addColorStop(0.7, "rgba(255,214,176,0.05)");
+          beam.addColorStop(1, "rgba(255,214,176,0)");
+          ctx.fillStyle = beam;
+          ctx.fillRect(0, 0, W, H);
+          ctx.restore();
+
+          ctx.save();
+          ctx.globalCompositeOperation = "screen";
+          const wash = ctx.createLinearGradient(
+            W * 0.56 - 120,
+            groundY - 10,
+            W * 0.56 + 120,
+            groundY - 10
+          );
+          wash.addColorStop(0, "rgba(255,206,150,0)");
+          wash.addColorStop(0.5, "rgba(255,206,150,0.1)");
+          wash.addColorStop(1, "rgba(255,206,150,0)");
+          ctx.fillStyle = wash;
+          ctx.fillRect(0, 0, W, H);
+          ctx.restore();
+
+          ctx.save();
+          ctx.globalCompositeOperation = "multiply";
+          const vignette = ctx.createLinearGradient(0, 0, W, 0);
+          vignette.addColorStop(0, "rgba(8,10,18,0.2)");
+          vignette.addColorStop(0.5, "rgba(8,10,18,0)");
+          vignette.addColorStop(1, "rgba(8,10,18,0.2)");
+          ctx.fillStyle = vignette;
+          ctx.fillRect(0, 0, W, H);
+          ctx.restore();
+        }
 
         for (let i = 0; i < Math.min(huts, 12); i++) {
           const hx = W * (0.35 + i * 0.05);
-          const hy = groundY + 6 + (i % 2) * 4;
-          drawHouse(hx, hy, 1.8, false);
+          const hy = groundY + 8 + (i % 2) * 4;
+          drawShadow(hx, hy + 6, 10, 2.6, 0.35);
+          drawHouse(hx, hy, 1.8, lit);
         }
 
         if (temples > 0)
           drawSpriteOrRect(
             "temple",
             W * 0.85,
-            groundY + 6,
+            groundY + 8,
             30,
             50,
             "#555",
-            2.0
+            2.6
           );
 
         const followers = Math.min(Math.floor(st.followers), 25);
         for (let i = 0; i < followers; i++) {
-          const walk = Math.sin(t * 3 + i * 13) * 2;
-          const fx = W * (0.2 + i * 0.025) + walk;
-          drawSpriteOrRect("follower", fx, groundY + 10, 6, 12, "#fff", 1.4);
+          const lane = i / Math.max(1, followers - 1);
+          const baseX = W * (0.32 + lane * 0.36);
+          const wander = Math.sin(t * 0.45 + i * 0.9) * 6;
+          const step = Math.sin(t * 2.2 + i * 1.4) * 2;
+          const stride = Math.abs(Math.sin(t * 4.4 + i * 1.2)) * 2;
+          const fx = baseX + wander + step;
+          const fy = groundY + 6 + stride;
+          drawShadow(fx, fy + 6, 5, 1.4, 0.3);
+          drawSpriteOrRect("follower", fx, fy, 3, 6, "#dfe7ff", 0.6);
         }
       }
 
