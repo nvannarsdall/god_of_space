@@ -58,53 +58,84 @@ function IntroCutscene({ onDone }) {
       ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
     };
 
-    const drawMonolith = (x, y, scale = 3.0, lit = true) => {
+    const drawArtifact = (x, y, scale = 3.0, lit = true, pulse = 0) => {
+      // Fallen relic dropped from the god — a cracked prism with a rune-core.
       const palette = lit
         ? {
             outline: "#15151f",
-            base: "#2c3244",
-            core: "#6f7fb4",
-            glow: "#ffe0b5",
-            trim: "#949ec1",
+            shell: "#2b3146",
+            shell2: "#3b4362",
+            core: "#b9d7ff",
+            rune: "#ffe0b5",
+            crack: "#6f7fb4",
           }
         : {
             outline: "#0b0c12",
-            base: "#1c1f2d",
-            core: "#394059",
-            glow: "#9aa0a8",
-            trim: "#596176",
+            shell: "#191c2a",
+            shell2: "#24283a",
+            core: "#6f86a6",
+            rune: "#b7a184",
+            crack: "#3b4460",
           };
-      const width = 28;
-      const height = 40;
+
+      const width = 34;
+      const height = 34;
       const dx = Math.floor(x - (width * scale) / 2);
       const dy = Math.floor(y - height * scale);
       const s = scale;
-      const fill = (sx, sy, sw, sh, col) => {
+
+      const fill = (sx, sy, sw, sh, col, a = 1) => {
+        ctx.save();
+        ctx.globalAlpha = a;
         ctx.fillStyle = col;
         ctx.fillRect(dx + sx * s, dy + sy * s, sw * s, sh * s);
+        ctx.restore();
       };
 
-      fill(2, 30, 24, 7, palette.base);
-      fill(2, 30, 24, 1, palette.outline);
-      fill(2, 36, 24, 1, palette.outline);
-      fill(2, 30, 1, 7, palette.outline);
-      fill(25, 30, 1, 7, palette.outline);
+      // Small shadow base
+      fill(10, 30, 14, 2, palette.outline, 0.55);
 
-      fill(9, 6, 10, 24, palette.core);
-      fill(9, 6, 10, 1, palette.outline);
-      fill(9, 29, 10, 1, palette.outline);
-      fill(9, 6, 1, 24, palette.outline);
-      fill(18, 6, 1, 24, palette.outline);
-      fill(10, 10, 8, 2, palette.trim);
-      fill(11, 13, 6, 2, palette.trim);
-      fill(12, 16, 4, 2, palette.trim);
-      fill(13, 19, 2, 6, palette.glow);
-      fill(12, 25, 4, 2, palette.glow);
+      // Shattered prism body (stepped)
+      fill(12, 6, 10, 2, palette.shell2);
+      fill(10, 8, 14, 3, palette.shell2);
+      fill(9, 11, 16, 4, palette.shell);
+      fill(8, 15, 18, 10, palette.shell);
+      fill(9, 25, 16, 4, palette.shell2);
+
+      // Outline
+      fill(12, 6, 10, 1, palette.outline);
+      fill(10, 8, 14, 1, palette.outline);
+      fill(9, 11, 16, 1, palette.outline);
+      fill(8, 15, 18, 1, palette.outline);
+      fill(8, 24, 18, 1, palette.outline);
+      fill(9, 28, 16, 1, palette.outline);
+      fill(8, 15, 1, 14, palette.outline);
+      fill(25, 15, 1, 14, palette.outline);
+
+      // Crack lines
+      fill(14, 12, 1, 10, palette.crack, 0.85);
+      fill(18, 13, 1, 8, palette.crack, 0.65);
+      fill(16, 18, 1, 7, palette.crack, 0.65);
+
+      // Rune core (pulses after impact)
+      const coreA = 0.45 + 0.45 * pulse;
+      fill(15, 16, 4, 6, palette.core, coreA);
+      fill(14, 18, 6, 2, palette.core, coreA);
+
+      // Rune glyph shimmer
+      const runeA = 0.25 + 0.55 * pulse;
+      fill(16, 15, 2, 1, palette.rune, runeA);
+      fill(15, 22, 4, 1, palette.rune, runeA);
+      fill(16, 20, 2, 1, palette.rune, runeA);
     };
 
     const loop = (now) => {
       if (!anim.current.start) anim.current.start = now;
       const t = (now - anim.current.start) / 1000;
+
+      if (phase !== "done" && t >= T.cutsceneEnd) {
+        setPhase("done");
+      }
 
       const phaseNow =
         t >= TIMING.ctaStart ? 3 : t >= TIMING.vanishStart ? 2 : t >= 6 ? 1 : 0;
@@ -202,6 +233,28 @@ function IntroCutscene({ onDone }) {
 
       // Horizon layers
       const groundY = H * 0.72;
+
+      // Artifact animation: falls from the sky, impacts, then pulses to call for help.
+      const fallStart = 9.2;
+      const fallEnd = 12.0;
+      const impactT = clamp((t - fallStart) / (fallEnd - fallStart), 0, 1);
+      const eased = 1 - Math.pow(1 - impactT, 3); // easeOutCubic
+      const startY = -H * 0.25;
+      const endY = groundY + 18;
+      const artifactY = startY + (endY - startY) * eased;
+
+      const afterImpact = clamp((t - fallEnd) / 2.0, 0, 1);
+      const pulse = 0.5 + 0.5 * Math.sin((t - fallEnd) * 4.2);
+      const pulse01 = clamp(afterImpact, 0, 1) * pulse;
+
+      // Camera shake on impact
+      const shake =
+        t >= fallEnd && t <= fallEnd + 0.55 ? 1 - (t - fallEnd) / 0.55 : 0;
+      const sx = (Math.random() - 0.5) * 6 * shake;
+      const sy = (Math.random() - 0.5) * 4 * shake;
+      ctx.save();
+      ctx.translate(sx, sy);
+
       if (dayBlend > 0.05) {
         const haze = ctx.createLinearGradient(0, groundY - 40, 0, groundY + 20);
         haze.addColorStop(0, `rgba(255, 215, 175, ${0.2 * dayBlend})`);
@@ -236,39 +289,53 @@ function IntroCutscene({ onDone }) {
 
       // Monolith & lighting
       const lit = darkBlend > 0.4;
-      drawMonolith(W * 0.5, groundY + 18, 3.3, lit);
+      if (t >= fallStart) drawArtifact(W * 0.5, artifactY, 2.5, lit, pulse01);
 
-      // Tighter, less "screen-wide" glow (fixes radial wash-out)
-      ctx.save();
-      const glowX = W * 0.5;
-      const glowY = groundY - 28;
-      const r0 = 6;
-      const r1 = 140;
-      const monolithGlow = ctx.createRadialGradient(
-        glowX,
-        glowY,
-        r0,
-        glowX,
-        glowY,
-        r1
-      );
-      if (lit) {
-        monolithGlow.addColorStop(0, "rgba(255,208,160,0.18)");
-        monolithGlow.addColorStop(0.35, "rgba(255,208,160,0.06)");
-      } else {
-        monolithGlow.addColorStop(0, "rgba(180,190,220,0.11)");
-        monolithGlow.addColorStop(0.35, "rgba(180,190,220,0.04)");
+      if (t >= fallStart) {
+        // Tighter, less "screen-wide" glow (fixes radial wash-out)
+        ctx.save();
+        const glowX = W * 0.5;
+        const glowY = artifactY - 40;
+        const r0 = 6;
+        const r1 = 140;
+        const monolithGlow = ctx.createRadialGradient(
+          glowX,
+          glowY,
+          r0,
+          glowX,
+          glowY,
+          r1
+        );
+        if (lit) {
+          monolithGlow.addColorStop(
+            0,
+            `rgba(255,208,160,${(0.1 + 0.1 * pulse01).toFixed(3)})`
+          );
+          monolithGlow.addColorStop(
+            0.35,
+            `rgba(255,208,160,${(0.03 + 0.05 * pulse01).toFixed(3)})`
+          );
+        } else {
+          monolithGlow.addColorStop(
+            0,
+            `rgba(180,190,220,${(0.07 + 0.07 * pulse01).toFixed(3)})`
+          );
+          monolithGlow.addColorStop(
+            0.35,
+            `rgba(180,190,220,${(0.02 + 0.04 * pulse01).toFixed(3)})`
+          );
+        }
+        monolithGlow.addColorStop(1, "rgba(255,208,160,0)");
+        ctx.globalCompositeOperation = "screen";
+        ctx.fillStyle = monolithGlow;
+        ctx.fillRect(
+          Math.floor(glowX - r1),
+          Math.floor(glowY - r1),
+          Math.ceil(r1 * 2),
+          Math.ceil(r1 * 2)
+        );
+        ctx.restore();
       }
-      monolithGlow.addColorStop(1, "rgba(255,208,160,0)");
-      ctx.globalCompositeOperation = "screen";
-      ctx.fillStyle = monolithGlow;
-      ctx.fillRect(
-        Math.floor(glowX - r1),
-        Math.floor(glowY - r1),
-        Math.ceil(r1 * 2),
-        Math.ceil(r1 * 2)
-      );
-      ctx.restore();
 
       // Gentle vignette so the sky doesn't get washed out
       ctx.save();
@@ -285,6 +352,30 @@ function IntroCutscene({ onDone }) {
       ctx.fillStyle = vig;
       ctx.fillRect(0, 0, W, H);
       ctx.restore();
+
+      // Impact shockwave + dust burst
+      if (t >= fallEnd && t <= fallEnd + 1.1) {
+        const a = 1 - clamp((t - fallEnd) / 1.1, 0, 1);
+        const r = 10 + (t - fallEnd) * 120;
+        ctx.save();
+        ctx.globalAlpha = 0.35 * a;
+        ctx.strokeStyle = "rgba(255,230,200,0.65)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(W * 0.5, groundY + 4, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+
+        // Burst particles
+        if (Math.random() < 0.35) {
+          anim.current.embers.push({
+            x: W / 2 + (Math.random() - 0.5) * 60,
+            y: groundY + 6,
+            vy: 1.2 + Math.random() * 1.8,
+            life: 45 + Math.random() * 25,
+          });
+        }
+      }
 
       // Embers rising
       if (emberBlend > 0) {
@@ -333,14 +424,18 @@ function IntroCutscene({ onDone }) {
         ctx.shadowOffsetY = 0;
       };
 
-      if (t > 0.8 && t < 4.2) drawText("THE SKY HELD ITS BREATH", H / 3);
-      if (t > 4.4 && t < 9.2)
-        drawText("A FLASH SHATTERED THE DAY", H / 3, "#f2b97d");
-      if (t > 9.2 && t < 13.5)
-        drawText("THE HORIZON BLED GOLD", H / 3, "#f5d3a7");
-      if (t > 13.5 && t < 18.0)
-        drawText("THE MONOLITH AWOKE", H / 3, "#d9e8ff");
-      if (t > 18.0) drawText(`WHISPER THE NAME: ${GOD_NAME}`, H / 3, "#f5e1c5");
+      if (t > 0.8 && t < 4.2)
+        drawText("I AM ASTRAEL — GOD OF THE NIGHT SKY", H / 3);
+      if (t > 4.2 && t < 8.6)
+        drawText("A FRACTURE SEVERED MY LIGHT", H / 3, "#f2b97d");
+      if (t > 8.6 && t < 13.8)
+        drawText("MY RELIC FELL — AN ANCHOR FOR MY RETURN", H / 3, "#f5d3a7");
+      if (t > 13.8 && t < 18.8)
+        drawText("GATHER OMENS. CALL A SEEKER.", H / 3, "#d9e8ff");
+      if (t > 18.8)
+        drawText("RESTORE CONSTELLATIONS. REBUILD MY POWER.", H / 3, "#f5e1c5");
+
+      ctx.restore();
 
       rafRef.current = requestAnimationFrame(loop);
     };
@@ -412,6 +507,8 @@ export default function App() {
   const statusRef = useRef(null);
   const upgradesRef = useRef(null);
   const skyTabRef = useRef(null);
+  const constellationsTabRef = useRef(null);
+  const portentBtnRef = useRef(null);
 
   const getRectFromRef = (ref) => {
     const el = ref?.current;
@@ -440,6 +537,8 @@ export default function App() {
         seekerButton: seekerBtnRef,
         upgrades: upgradesRef,
         skyTab: skyTabRef,
+        constellationsTab: constellationsTabRef,
+        portentButton: portentBtnRef,
       },
     });
   }, [state, tutorialOn, seekerCost]);
@@ -458,6 +557,9 @@ export default function App() {
   const isSkyTabStep = tutorialOn ? Boolean(tutorialAllows.skyTab) : true;
   const isSkyUpgradeStep = tutorialOn
     ? Boolean(tutorialAllows.skyUpgrades)
+    : true;
+  const isConstellationsTabStep = tutorialOn
+    ? Boolean(tutorialAllows.constellationsTab)
     : true;
   const isSeekerStep = tutorialOn ? Boolean(tutorialAllows.seeker) : true;
   const inMenu = state.ui?.screen === "menu";
@@ -666,6 +768,33 @@ export default function App() {
     showToast("Saved.");
   };
 
+  const doAscend = () => {
+    // Prestige-lite: keep constellations unlocked, gain Memory, reset run resources.
+    setState((s0) => {
+      const s = migrateState(s0);
+      const unlocked = s.constellations?.unlocked || [];
+      const devotion = s.devotion || 0;
+      const gained = Math.max(1, Math.floor(devotion / 10000));
+      const next = baseState();
+      next.settings = { ...s.settings };
+      next.meta = {
+        cycles: (s.meta?.cycles || 0) + 1,
+        memory: (s.meta?.memory || 0) + gained,
+      };
+      next.constellations = { unlocked: [...unlocked], points: 0 };
+      next.ui = {
+        ...next.ui,
+        screen: "menu",
+        tutorialActive: false,
+        tutorialHidden: true,
+        introSeen: true,
+        tab: "village",
+      };
+      return migrateState(next);
+    });
+    showToast("The cosmos turns. Memory remains.");
+  };
+
   const doReset = () => {
     try {
       localStorage.removeItem(LS_KEY);
@@ -733,6 +862,7 @@ export default function App() {
       tab: "village",
       introSeen: true,
     };
+    next.constellations = { unlocked: [], points: 2 };
     try {
       localStorage.removeItem(LS_KEY);
     } catch {}
@@ -839,6 +969,7 @@ export default function App() {
             </Button>
           </div>
         </div>
+        )}
       </div>
 
       <div
@@ -926,13 +1057,22 @@ export default function App() {
                     className="rowBetween"
                     style={{ gap: 10, flexWrap: "wrap" }}
                   >
-                    <Button
-                      variant="secondary"
-                      onClick={invokePortent}
-                      disabled={state.whispers < PORTENT_COST || portentActive}
+                    <div
+                      ref={portentBtnRef}
+                      className={
+                        tutorialStepData?.id === "portent" ? "tutTarget" : ""
+                      }
                     >
-                      Ignite Portent ({PORTENT_COST})
-                    </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={invokePortent}
+                        disabled={
+                          state.whispers < PORTENT_COST || portentActive
+                        }
+                      >
+                        Ignite Portent ({PORTENT_COST})
+                      </Button>
+                    </div>
                     {portentActive && (
                       <Pill>Portent: {Math.ceil(portentRemaining)}s</Pill>
                     )}
@@ -1019,11 +1159,14 @@ export default function App() {
               Sky
             </button>
             <button
+              ref={constellationsTabRef}
               className={`tab ${tab === "constellations" ? "tabActive" : ""} ${
-                tutorialOn ? "tabDisabled" : ""
+                tutorialOn && !isConstellationsTabStep ? "tabDisabled" : ""
               } ${!awakened ? "tabDisabled" : ""}`}
               onClick={() =>
-                !tutorialOn && awakened && setTab("constellations")
+                (!tutorialOn || isConstellationsTabStep) && awakened
+                  ? setTab("constellations")
+                  : null
               }
             >
               Constellations
@@ -1137,6 +1280,13 @@ export default function App() {
               >
                 Continue
               </button>
+
+              {state?.constellations?.unlocked?.includes("crown_of_night") &&
+                (state.devotion || 0) >= 50000 && (
+                  <button className="btn btnPrimary" onClick={doAscend}>
+                    ASCEND (Cosmic Cycle)
+                  </button>
+                )}
               <button className="btn btnDanger" onClick={doReset}>
                 Reset Save
               </button>

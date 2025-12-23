@@ -524,6 +524,23 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, W, H);
 
+        // Phase 4: faint aurora that grows with Cosmic Memory
+        const mem = st?.meta?.memory || 0;
+        if (mem > 0 && !st.settings?.reducedMotion) {
+          const a = clamp(mem / 20, 0, 1) * 0.1;
+          const gx = W * (0.25 + 0.25 * Math.sin(t * 0.6));
+          const gy = H * 0.22;
+          const aur = ctx.createRadialGradient(gx, gy, 10, gx, gy, W * 0.8);
+          aur.addColorStop(0, `rgba(120,190,255,${a})`);
+          aur.addColorStop(0.4, `rgba(170,120,255,${a * 0.7})`);
+          aur.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.save();
+          ctx.globalCompositeOperation = "screen";
+          ctx.fillStyle = aur;
+          ctx.fillRect(0, 0, W, H);
+          ctx.restore();
+        }
+
         const reveal = clamp(1 - veil, 0.05, 1);
         const starsDensity = clamp(st.settings?.starsDensity ?? 1, 0.2, 2);
         ctx.fillStyle = "#eaf2ff";
