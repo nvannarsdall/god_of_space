@@ -544,7 +544,7 @@ export default function App() {
       const s = migrateState(s0);
       if (tutorialOn && !tutorialAllows.world) return s;
       const c = compute(s);
-      const base = 0.12 * c.telescopeBonus * c.starlightBonus;
+      const base = 0.2 * c.telescopeBonus * c.starlightBonus;
       const stardust = s.stardust + base;
       return migrateState({ ...s, stardust });
     });
