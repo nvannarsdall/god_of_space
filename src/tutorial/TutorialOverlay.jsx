@@ -52,12 +52,12 @@ function TutorialOverlay({
     position: "fixed",
     left: "50%",
     transform: "translateX(-50%)",
-    width: "min(600px, 90vw)",
+    width: "min(760px, 92vw)",
     zIndex: 100, // Must be above the SVG mask
     transition: "top 0.3s ease, bottom 0.3s ease",
     // Docking Logic:
-    top: isTargetHigh ? "auto" : "100px",
-    bottom: isTargetHigh ? "50px" : "auto",
+    top: isTargetHigh ? "auto" : "80px",
+    bottom: isTargetHigh ? "40px" : "auto",
   };
 
   return (

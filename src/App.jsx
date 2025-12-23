@@ -574,7 +574,7 @@ export default function App() {
     const el = audioRef.current;
     if (!el) return;
 
-    el.src = "/assets/audio/god_of_space_theme.wav";
+    el.src = "/audio/god_of_space_theme.mp3";
     el.loop = true;
     el.volume = 0.7;
     el.muted = true;
@@ -661,7 +661,7 @@ export default function App() {
   useEffect(() => {
     if (!tutorialOn) return;
     const step = state.ui?.tutorialStep || 0;
-    if (step >= 6 && !state.unlocked.sky) {
+    if (step >= 8 && !state.unlocked.sky) {
       setState((s) =>
         migrateState({ ...s, unlocked: { ...s.unlocked, sky: true } })
       );
@@ -697,12 +697,13 @@ export default function App() {
       setState((s0) => {
         const s = migrateState(s0);
         const c = compute(s);
+        const dt = step / 1000;
         return migrateState({
           ...s,
-          t: s.t + 1,
-          followers: Math.min(c.cap, s.followers + c.followerRate),
-          devotion: s.devotion + c.devotionRate,
-          whispers: s.whispers + (c.omenRate || 0),
+          t: s.t + dt,
+          followers: Math.min(c.cap, s.followers + c.followerRate * dt),
+          devotion: Math.max(0, s.devotion + c.devotionRate * dt),
+          whispers: Math.max(0, s.whispers + (c.omenRate || 0) * dt),
           stardust: s.stardust,
         });
       });
@@ -807,27 +808,10 @@ export default function App() {
 
   const canCallSeeker = !awakened && state.whispers >= seekerCost;
   const callSeeker = () => {
-    let did = false;
-    let failReason = "";
     setState((s0) => {
       const s = migrateState(s0);
-
-      // During the tutorial, the Seeker action is intended for the "seeker" step (index 2).
-      if (tutorialOn && (s.ui?.tutorialStep ?? 0) !== 2) {
-        failReason = "Follow the tutorial steps first.";
-        return s;
-      }
-
-      if (s.unlocked.awakened) {
-        failReason = "You are already awakened.";
-        return s;
-      }
-      if (s.whispers < seekerCost) {
-        failReason = `Need ${seekerCost} Omens.`;
-        return s;
-      }
-
-      did = true;
+      if (s.unlocked.awakened) return s;
+      if (s.whispers < seekerCost) return s;
       return migrateState({
         ...s,
         whispers: s.whispers - seekerCost,
@@ -835,9 +819,7 @@ export default function App() {
         unlocked: { ...s.unlocked, awakened: true },
       });
     });
-
-    if (did) showToast("A Seeker enters the dusk.");
-    else if (failReason) showToast(failReason);
+    showToast("A Seeker enters the dusk.");
   };
 
   const PORTENT_COST = 30;

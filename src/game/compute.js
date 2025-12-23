@@ -48,6 +48,23 @@ function compute(s) {
     ? s.followers * devotionPerFollower * surgeEV * globalMul
     : 0;
 
+  // === REVERENCE (Devotion) DECAY — Phase 2 ===
+  // Reverence is unstable unless supported by village structures.
+  // This creates meaningful tension so the player must invest in stability.
+  const devotionDecayRate = s.unlocked.awakened
+    ? (() => {
+        const support = 1 + 0.14 * temples + 0.08 * shrines + 0.1 * festivals;
+        const veilNow = clamp(1 - starsong * 0.09, 0.08, 1);
+        const veilPressure = 1 + 0.1 * veilNow;
+        // Small baseline + scales gently with current stored devotion
+        const base = 0.06 + 0.0022 * (s.devotion || 0);
+        return (base * veilPressure) / support;
+      })()
+    : 0;
+
+  // Net devotion rate (can go negative if decay exceeds gain)
+  devotionRate = devotionRate - devotionDecayRate;
+
   // === OMENS ===
   let omenRate = s.unlocked.awakened
     ? (0.05 * shrines + 0.01 * festivals) * globalMul
@@ -89,6 +106,7 @@ function compute(s) {
     cap,
     followerRate,
     devotionRate,
+    devotionDecayRate,
     prosperityRate: finalProsperityRate,
     omenRate,
     omenClickGain,

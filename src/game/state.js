@@ -51,6 +51,7 @@ function baseState() {
     constellations: {
       unlocked: [],
       points: 0,
+      active: null,
     },
 
     village: {

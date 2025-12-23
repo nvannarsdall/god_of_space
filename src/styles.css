@@ -551,3 +551,110 @@ button:disabled {
 .settingsFooter .btn {
   min-width: 120px;
 }
+
+/* === Phase 4: Brighter Sky + Constellation Glow === */
+.constellationBG {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.twinkleStar {
+  position: absolute;
+  background: rgba(235, 245, 255, 1);
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(200, 235, 255, 0.35);
+  animation: gosTwinkle 3.6s ease-in-out infinite;
+}
+
+@keyframes gosTwinkle {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 1;
+  }
+}
+
+.constellationLine {
+  filter: drop-shadow(0 0 6px rgba(170, 215, 255, 0.35));
+}
+
+.constellationDot {
+  border-radius: 999px;
+  box-shadow: 0 0 16px rgba(180, 230, 255, 0.18);
+}
+
+.constellationDot.dotUnlocked {
+  box-shadow: 0 0 18px rgba(200, 240, 255, 0.42);
+}
+
+.constellationDot.dotCan {
+  box-shadow: 0 0 14px rgba(170, 215, 255, 0.25);
+}
+
+.constellationDot.dotActive {
+  box-shadow: 0 0 24px rgba(230, 250, 255, 0.65);
+  animation: gosPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes gosPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+.constellationModes .modeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.modeChip {
+  cursor: pointer;
+  border: 1px solid rgba(120, 150, 220, 0.25);
+  background: rgba(10, 12, 20, 0.55);
+  color: rgba(230, 240, 255, 0.9);
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 120ms ease, border-color 120ms ease,
+    background 120ms ease;
+}
+
+.modeChip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(170, 215, 255, 0.35);
+  background: rgba(20, 26, 44, 0.6);
+}
+
+.modeChipLocked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.modeChipActive {
+  border-color: rgba(210, 240, 255, 0.55);
+  box-shadow: 0 0 14px rgba(180, 230, 255, 0.18);
+  background: rgba(30, 38, 66, 0.65);
+}
+
+.modeDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(220, 240, 255, 0.9);
+  box-shadow: 0 0 10px rgba(200, 235, 255, 0.25);
+}

@@ -17,6 +17,39 @@ export const CONSTELLATIONS = [
     links: ["ember_hearth", "guiding_star"],
   },
 
+  // MODE STARS (Phase 4): Unlockable playstyle "stances"
+  // These are mutually exclusive once activated (see state.constellations.active).
+  {
+    id: "mode_hunter",
+    name: "Hunter",
+    desc: "Intervention. Omens become more potent, but the Veil thickens.",
+    cost: 2,
+    req: ["root_dusk"],
+    pos: { x: 0.25, y: 0.22 },
+    links: ["guiding_star"],
+    kind: "mode",
+  },
+  {
+    id: "mode_shepherd",
+    name: "Shepherd",
+    desc: "Stewardship. Followers grow and stabilize, but outputs are steadier, not spiky.",
+    cost: 2,
+    req: ["root_dusk"],
+    pos: { x: 0.5, y: 0.24 },
+    links: ["dusk_seed"],
+    kind: "mode",
+  },
+  {
+    id: "mode_oracle",
+    name: "Oracle",
+    desc: "Remembrance. Constellation points and starlight deepen, but rituals yield fewer Omens.",
+    cost: 2,
+    req: ["root_dusk"],
+    pos: { x: 0.75, y: 0.22 },
+    links: ["orbit_warden"],
+    kind: "mode",
+  },
+
   // Left branch (Village care)
   {
     id: "ember_hearth",
@@ -105,6 +138,26 @@ export function canUnlock(node, unlockedArray, points) {
 export function applyConstellationBonuses(state, base) {
   const u = unlockedSet(state?.constellations?.unlocked || []);
   const out = { ...base };
+
+  // Phase 4: Mode star (mutually exclusive stance)
+  const activeMode = state?.constellations?.active || null;
+  if (activeMode === "mode_hunter") {
+    // More Omens and click potency, but slightly higher veil pressure.
+    out.omenRate *= 1.35;
+    out.villageClickMult *= 1.15;
+    out.veil = Math.min(1, out.veil * 1.06);
+  } else if (activeMode === "mode_shepherd") {
+    // More follower capacity and stability.
+    out.cap *= 1.25;
+    out.devotionRate *= 1.08;
+    out.veil = Math.max(0.08, out.veil * 0.97);
+  } else if (activeMode === "mode_oracle") {
+    // Faster constellation growth and brighter sky, but fewer Omens from rituals.
+    out.constellationPointRate *= 1.35;
+    out.starlightBonus *= 1.18;
+    out.omenRate *= 0.9;
+    out.veil = Math.max(0.08, out.veil * 0.95);
+  }
 
   const prosperity = state?.village?.prosperity || 0;
 

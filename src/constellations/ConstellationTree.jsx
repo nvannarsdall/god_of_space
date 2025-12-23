@@ -8,9 +8,35 @@ import { CONSTELLATIONS, canUnlock } from "./constellations";
  * - Spend constellation points to unlock nodes
  * - Dependencies enforce branching choices
  */
-export default function ConstellationTree({ state, onUnlock }) {
+export default function ConstellationTree({ state, onUnlock, onSetActive }) {
   const points = state?.constellations?.points || 0;
   const unlocked = state?.constellations?.unlocked || [];
+
+  const active = state?.constellations?.active || null;
+
+  const bgStars = useMemo(() => {
+    // deterministic pseudo-random based on save seed-ish
+    const seed = (state?.seed || 999) >>> 0;
+    let t = seed + 0x9e3779b9;
+    const rnd = () => {
+      t ^= t << 13;
+      t ^= t >>> 17;
+      t ^= t << 5;
+      return (t >>> 0) / 4294967296;
+    };
+    const count = 90;
+    const arr = [];
+    for (let i = 0; i < count; i++) {
+      arr.push({
+        x: rnd() * 100,
+        y: rnd() * 100,
+        s: 1 + Math.floor(rnd() * 2),
+        a: 0.25 + rnd() * 0.55,
+        d: Math.floor(rnd() * 4000),
+      });
+    }
+    return arr;
+  }, [state?.seed]);
 
   const byId = useMemo(() => {
     const m = new Map();
@@ -46,6 +72,43 @@ export default function ConstellationTree({ state, onUnlock }) {
         alters your world.
       </div>
 
+      <div style={{ marginTop: 10 }} className="constellationModes">
+        <div className="smallText" style={{ opacity: 0.95, marginBottom: 6 }}>
+          Mode Star (choose one stance)
+        </div>
+        <div className="modeRow">
+          {["mode_hunter", "mode_shepherd", "mode_oracle"].map((mid) => {
+            const node = byId.get(mid);
+            const isUnlocked = unlockedSet.has(mid);
+            if (!node) return null;
+            return (
+              <button
+                key={mid}
+                className={`modeChip ${
+                  active === mid ? "modeChipActive" : ""
+                } ${!isUnlocked ? "modeChipLocked" : ""}`}
+                onClick={() => {
+                  if (!isUnlocked) return;
+                  onSetActive && onSetActive(mid);
+                }}
+                title={isUnlocked ? node.desc : "Unlock this Mode Star first."}
+              >
+                <span className="modeDot" />
+                {node.name}
+              </button>
+            );
+          })}
+          <button
+            className={`modeChip ${!active ? "modeChipActive" : ""}`}
+            onClick={() => onSetActive && onSetActive(null)}
+            title="Deactivate stance"
+          >
+            <span className="modeDot" />
+            Neutral
+          </button>
+        </div>
+      </div>
+
       <div
         style={{
           position: "relative",
@@ -58,6 +121,24 @@ export default function ConstellationTree({ state, onUnlock }) {
           border: "1px solid rgba(120,150,220,0.15)",
         }}
       >
+        {/* Background Stars */}
+        <div className="constellationBG">
+          {bgStars.map((s, i) => (
+            <span
+              key={i}
+              className="twinkleStar"
+              style={{
+                left: `${s.x}%`,
+                top: `${s.y}%`,
+                width: s.s,
+                height: s.s,
+                opacity: s.a,
+                animationDelay: `${s.d}ms`,
+              }}
+            />
+          ))}
+        </div>
+
         {/* Lines */}
         <svg
           width="100%"
@@ -71,6 +152,7 @@ export default function ConstellationTree({ state, onUnlock }) {
             return (
               <line
                 key={i}
+                className="constellationLine"
                 x1={L.from.pos.x * 1000}
                 y1={L.from.pos.y * 600}
                 x2={L.to.pos.x * 1000}
