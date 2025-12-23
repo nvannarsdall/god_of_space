@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { clamp } from "../game/state";
 
-// Resolution: 2 = Sharp Hi-Bit Pixel Art.
-const PIXEL_SCALE = 2;
+// Resolution: lower = sharper Hi-Bit Pixel Art.
+const DEFAULT_PIXEL_SCALE = 2;
 const TOTEM_TARGET = { x: 0.52, y: 0.7 };
 
 function makeStars(seed) {
@@ -35,6 +35,12 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
   const spritesRef = useRef({ imgs: {}, ready: false });
   const fxRef = useRef([]);
   const fxIdRef = useRef(0);
+  const lightRef = useRef({
+    canvas: null,
+    ctx: null,
+    tint: null,
+    tintCtx: null,
+  });
 
   const stateRef = useRef(state);
   const computedRef = useRef(computed);
@@ -308,14 +314,185 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       fill(11, 23, 4, 2, palette.glow);
     };
 
+    // --- ADVANCED LIGHTING (darkness mask + colored bloom) ---
+    const ensureLightBuffers = (W, H) => {
+      const ref = lightRef.current;
+      if (!ref.canvas) {
+        ref.canvas = document.createElement("canvas");
+        ref.ctx = ref.canvas.getContext("2d", { alpha: true });
+      }
+      if (!ref.tint) {
+        ref.tint = document.createElement("canvas");
+        ref.tintCtx = ref.tint.getContext("2d", { alpha: true });
+      }
+      if (ref.canvas.width !== W || ref.canvas.height !== H) {
+        ref.canvas.width = W;
+        ref.canvas.height = H;
+      }
+      if (ref.tint.width !== W || ref.tint.height !== H) {
+        ref.tint.width = W;
+        ref.tint.height = H;
+      }
+      ref.ctx.imageSmoothingEnabled = false;
+      ref.tintCtx.imageSmoothingEnabled = false;
+      return ref;
+    };
+
+    const cutLight = (lctx, x, y, radius, strength = 1) => {
+      // strength: 0..1 (higher = bigger hole / brighter)
+      const r = Math.max(1, radius);
+      const g = lctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(0,0,0,${clamp(1 * strength, 0, 1)})`);
+      g.addColorStop(0.6, `rgba(0,0,0,${clamp(0.35 * strength, 0, 1)})`);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      lctx.save();
+      lctx.globalCompositeOperation = "destination-out";
+      lctx.fillStyle = g;
+      lctx.fillRect(
+        Math.floor(x - r),
+        Math.floor(y - r),
+        Math.ceil(r * 2),
+        Math.ceil(r * 2)
+      );
+      lctx.restore();
+    };
+
+    const addBloom = (tctx, x, y, radius, color, alpha = 0.12) => {
+      const r = Math.max(1, radius);
+      const g = tctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, color.replace("ALPHA", String(alpha)));
+      g.addColorStop(1, color.replace("ALPHA", "0"));
+      tctx.save();
+      tctx.globalCompositeOperation = "lighter";
+      tctx.fillStyle = g;
+      tctx.fillRect(
+        Math.floor(x - r),
+        Math.floor(y - r),
+        Math.ceil(r * 2),
+        Math.ceil(r * 2)
+      );
+      tctx.restore();
+    };
+
+    const renderLighting = (ctx, W, H, groundY, st, now, isSkyMode) => {
+      const settings = st?.settings || {};
+      if (settings.lightingEnabled === false) return;
+
+      const intensity = clamp(settings.lightingIntensity ?? 0.85, 0, 1);
+      const bloomEnabled = settings.bloomEnabled !== false;
+
+      const {
+        ctx: lctx,
+        tintCtx: tctx,
+        canvas: lightCanvas,
+        tint: tintCanvas,
+      } = ensureLightBuffers(W, H);
+
+      // Clear
+      lctx.setTransform(1, 0, 0, 1, 0, 0);
+      tctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.clearRect(0, 0, W, H);
+      tctx.clearRect(0, 0, W, H);
+
+      // Ambient darkness (dusk world)
+      // A slow day/night pulse keeps the world alive without being distracting.
+      const phase = ((st.t || 0) / 180) % 1; // ~3 min full cycle
+      const nightPulse = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2);
+      const baseDark = isSkyMode ? 0.1 : 0.38;
+      const dark = clamp(baseDark + nightPulse * 0.22 * intensity, 0, 0.85);
+
+      lctx.fillStyle = `rgba(0,0,0,${dark})`;
+      lctx.fillRect(0, 0, W, H);
+
+      // Light sources
+      const lights = [];
+      const lit = (st.devotion || 0) > 0;
+
+      // Village fire (main hut)
+      if (!isSkyMode && lit) {
+        lights.push({
+          x: W * 0.26,
+          y: groundY - 12,
+          r: 95,
+          s: 0.9,
+          bloom: { r: 120, color: "rgba(255,220,160,ALPHA)", a: 0.1 },
+        });
+      }
+
+      // Central monolith glow (always subtle, stronger when lit)
+      if (!isSkyMode) {
+        lights.push({
+          x: W * 0.56,
+          y: groundY - 8,
+          r: lit ? 170 : 120,
+          s: lit ? 0.78 : 0.45,
+          bloom: {
+            r: lit ? 210 : 150,
+            color: "rgba(190,210,255,ALPHA)",
+            a: lit ? 0.08 : 0.05,
+          },
+        });
+      }
+
+      // Temple lanterns
+      const temples = st?.village?.temples || 0;
+      if (!isSkyMode && temples > 0) {
+        lights.push({
+          x: W * 0.85,
+          y: groundY - 14,
+          r: 120,
+          s: 0.65,
+          bloom: { r: 150, color: "rgba(255,200,140,ALPHA)", a: 0.07 },
+        });
+      }
+
+      // Sky mode: a soft vignette + starlight aura
+      if (isSkyMode) {
+        lights.push({
+          x: W * 0.5,
+          y: H * 0.45,
+          r: 260,
+          s: 0.55,
+          bloom: { r: 320, color: "rgba(190,220,255,ALPHA)", a: 0.06 },
+        });
+      }
+
+      // Apply lights with subtle flicker
+      const flicker = (k) =>
+        1 +
+        0.06 * Math.sin(now / 140 + k * 2.1) +
+        0.03 * Math.sin(now / 53 + k * 0.9);
+
+      lights.forEach((L, i) => {
+        const f = flicker(i);
+        cutLight(lctx, L.x, L.y, L.r * f, clamp(L.s, 0, 1));
+        if (bloomEnabled && L.bloom) {
+          addBloom(tctx, L.x, L.y, L.bloom.r * f, L.bloom.color, L.bloom.a);
+        }
+      });
+
+      // Composite darkness + bloom
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.drawImage(lightCanvas, 0, 0);
+      if (bloomEnabled) {
+        ctx.globalCompositeOperation = "screen";
+        ctx.drawImage(tintCanvas, 0, 0);
+      }
+      ctx.restore();
+    };
     const loop = (now) => {
       // 0. RESET TRANSFORM (Critical fix for gliding)
       ctx.setTransform(1, 0, 0, 1, 0, 0);
 
       // 1. RESIZE
+      const st = stateRef.current;
       const rect = wrapRef.current.getBoundingClientRect();
-      const W = Math.ceil(rect.width / PIXEL_SCALE);
-      const H = Math.ceil(rect.height / PIXEL_SCALE);
+      const pixelScale = Math.round(
+        clamp(st?.settings?.pixelScale ?? DEFAULT_PIXEL_SCALE, 1, 4)
+      );
+      const W = Math.ceil(rect.width / pixelScale);
+      const H = Math.ceil(rect.height / pixelScale);
 
       if (c.width !== W || c.height !== H) {
         c.width = W;
@@ -323,11 +500,11 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         ctx.imageSmoothingEnabled = false;
       }
 
-      const st = stateRef.current;
       const t = st.settings?.reducedMotion ? 0 : now / 1000;
       const veil = computedRef.current?.veil || 1;
 
       const isSkyMode = modeRef.current === "sky";
+      const groundY = Math.floor(H * 0.75);
 
       // 2. SKY
       ctx.fillStyle = "#05040a";
@@ -342,10 +519,11 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         ctx.fillRect(0, 0, W, H);
 
         const reveal = clamp(1 - veil, 0.05, 1);
+        const starsDensity = clamp(st.settings?.starsDensity ?? 1, 0.2, 2);
         ctx.fillStyle = "#eaf2ff";
         stars.forEach((layer) => {
           layer.forEach((star) => {
-            const a = star.a * (0.1 + reveal * 0.9);
+            const a = star.a * starsDensity * (0.1 + reveal * 0.9);
             if (a < 0.06) return;
             const x = (star.x * W + t * 2 * star.sp) % W;
             const y = (star.y * H) % H;
@@ -402,8 +580,6 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         }
 
         // 3. GROUND (Made slightly lighter to ensure visibility)
-        const groundY = Math.floor(H * 0.75);
-
         // Mountains (Solid Color - Fixes the "gliding" transparency issue)
         ctx.fillStyle = "#0d0f1b";
         ctx.beginPath();
@@ -436,23 +612,6 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         ctx.fillStyle = "#2a2c3b";
         ctx.fillRect(0, groundY, W, 2);
 
-        // Ember glow in the sky near the horizon
-        const glow = ctx.createRadialGradient(
-          W * 0.5,
-          groundY - 20,
-          10,
-          W * 0.5,
-          groundY - 20,
-          180
-        );
-        glow.addColorStop(0, "rgba(255,196,146,0.2)");
-        glow.addColorStop(1, "rgba(255,196,146,0)");
-        ctx.save();
-        ctx.globalCompositeOperation = "screen";
-        ctx.fillStyle = glow;
-        ctx.fillRect(0, 0, W, groundY + 40);
-        ctx.restore();
-
         // 4. ENTITIES
         const huts = st.village.huts || 0;
         const temples = st.village.temples || 0;
@@ -460,44 +619,9 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         const lit = st.devotion > 0;
         // Main Hut (Y + 4 to sit on ground)
         drawHouse(W * 0.26, groundY + 6, 2.4, lit);
-        if (lit) {
-          ctx.save();
-          const hutGlow = ctx.createRadialGradient(
-            W * 0.26,
-            groundY - 12,
-            8,
-            W * 0.26,
-            groundY - 12,
-            70
-          );
-          hutGlow.addColorStop(0, "rgba(255,220,160,0.35)");
-          hutGlow.addColorStop(1, "rgba(255,220,160,0)");
-          ctx.globalCompositeOperation = "screen";
-          ctx.fillStyle = hutGlow;
-          ctx.fillRect(W * 0.16, groundY - 80, W * 0.2, 140);
-          ctx.restore();
-        }
 
         // Central monolith (main focal point)
         drawMonolith(W * 0.56, groundY + 10, 2.8, lit);
-        ctx.save();
-        const monolithGlow = ctx.createRadialGradient(
-          W * 0.56,
-          groundY - 8,
-          20,
-          W * 0.56,
-          groundY - 8,
-          160
-        );
-        monolithGlow.addColorStop(
-          0,
-          lit ? "rgba(255,214,168,0.4)" : "rgba(160,170,200,0.25)"
-        );
-        monolithGlow.addColorStop(1, "rgba(255,214,168,0)");
-        ctx.globalCompositeOperation = "screen";
-        ctx.fillStyle = monolithGlow;
-        ctx.fillRect(W * 0.4, groundY - 140, W * 0.32, 220);
-        ctx.restore();
 
         for (let i = 0; i < Math.min(huts, 12); i++) {
           const hx = W * (0.35 + i * 0.05);
@@ -543,6 +667,9 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
           ctx.stroke();
         }
       });
+
+      // 5. LIGHTING (applied after world + particles, before UI text)
+      renderLighting(ctx, W, H, groundY, st, now, isSkyMode);
 
       // 6. FLOATING TEXT
       fxRef.current.forEach((p) => {

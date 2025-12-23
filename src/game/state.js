@@ -70,8 +70,21 @@ function baseState() {
     settings: {
       autosave: true,
       reducedMotion: false,
+
+      // Audio
       musicEnabled: false,
-      musicVolume: 0.65,
+      masterVolume: 0.85, // 0..1
+      musicVolume: 0.65, // 0..1
+      sfxVolume: 0.75, // 0..1 (reserved for future SFX)
+
+      // Graphics
+      pixelScale: 2, // 1..4 (lower = sharper, higher = chunkier)
+      starsDensity: 1, // 0.2..2 (sky sparkle amount)
+
+      // Lighting
+      lightingEnabled: true,
+      lightingIntensity: 0.85, // 0..1 (higher = darker nights + stronger lights)
+      bloomEnabled: true,
     },
   };
 }
@@ -142,10 +155,34 @@ function migrateState(s) {
     {
       autosave: true,
       reducedMotion: false,
+
       musicEnabled: false,
+      masterVolume: 0.85,
       musicVolume: 0.65,
+      sfxVolume: 0.75,
+
+      pixelScale: 2,
+      starsDensity: 1,
+
+      lightingEnabled: true,
+      lightingIntensity: 0.85,
+      bloomEnabled: true,
     },
     next.settings || {}
+  );
+
+  // settings sanity
+  next.settings.masterVolume = clamp(next.settings.masterVolume ?? 0.85, 0, 1);
+  next.settings.musicVolume = clamp(next.settings.musicVolume ?? 0.65, 0, 1);
+  next.settings.sfxVolume = clamp(next.settings.sfxVolume ?? 0.75, 0, 1);
+  next.settings.pixelScale = Math.round(
+    clamp(next.settings.pixelScale ?? 2, 1, 4)
+  );
+  next.settings.starsDensity = clamp(next.settings.starsDensity ?? 1, 0.2, 2);
+  next.settings.lightingIntensity = clamp(
+    next.settings.lightingIntensity ?? 0.85,
+    0,
+    1
   );
 
   return next;

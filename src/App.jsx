@@ -309,16 +309,14 @@ function IntroCutscene({ onDone }) {
         ctx.shadowOffsetY = 0;
       };
 
-      if (t > 0.8 && t < 4.2)
-        drawText("THE SKY HELD ITS BREATH", H / 3);
+      if (t > 0.8 && t < 4.2) drawText("THE SKY HELD ITS BREATH", H / 3);
       if (t > 4.4 && t < 9.2)
         drawText("A FLASH SHATTERED THE DAY", H / 3, "#f2b97d");
       if (t > 9.2 && t < 13.5)
         drawText("THE HORIZON BLED GOLD", H / 3, "#f5d3a7");
       if (t > 13.5 && t < 18.0)
         drawText("THE MONOLITH AWOKE", H / 3, "#d9e8ff");
-      if (t > 18.0)
-        drawText(`WHISPER THE NAME: ${GOD_NAME}`, H / 3, "#f5e1c5");
+      if (t > 18.0) drawText(`WHISPER THE NAME: ${GOD_NAME}`, H / 3, "#f5e1c5");
 
       rafRef.current = requestAnimationFrame(loop);
     };
@@ -381,12 +379,35 @@ export default function App() {
 
   const computed = useMemo(() => compute(state), [state]);
   const [toast, setToast] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Audio & Refs
   const audioRef = useRef(null);
   const urlsRef = useRef([]);
   const [playlist, setPlaylist] = useState([]);
   const [track, setTrack] = useState(0);
+  const DEFAULT_PLAYLIST = useMemo(
+    () => [
+      {
+        title: "God of Space — Main Theme",
+        url: "/assets/audio/god_of_space_theme.wav",
+      },
+      {
+        title: "Nebula Drift",
+        url: "/assets/audio/nebula_drift.wav",
+      },
+      {
+        title: "Silent Constellations",
+        url: "/assets/audio/silent_constellations.wav",
+      },
+    ],
+    []
+  );
+
+  useEffect(() => {
+    // Populate the playlist once. (Audio files live in /public/assets/audio)
+    setPlaylist(DEFAULT_PLAYLIST);
+  }, [DEFAULT_PLAYLIST]);
 
   const worldRef = useRef(null);
   const seekerBtnRef = useRef(null);
@@ -486,48 +507,6 @@ export default function App() {
     }, step);
     return () => clearInterval(id);
   }, [state.settings.reducedMotion]);
-
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    el.volume = clamp(state.settings.musicVolume ?? 0.65, 0, 1);
-    el.muted = !state.settings.musicEnabled;
-  }, [state.settings.musicEnabled, state.settings.musicVolume]);
-
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    if (playlist.length <= 0) {
-      el.pause();
-      el.removeAttribute("src");
-      try {
-        el.load();
-      } catch {}
-      return;
-    }
-    const idx = clamp(track, 0, playlist.length - 1);
-    if (el.src !== playlist[idx].url) {
-      el.src = playlist[idx].url;
-      try {
-        el.load();
-      } catch {}
-    }
-    if (state.settings.musicEnabled) {
-      const p = el.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
-    }
-  }, [playlist, track, state.settings.musicEnabled]);
-
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    const onEnded = () => {
-      if (!playlist.length) return;
-      setTrack((i) => (i + 1) % playlist.length);
-    };
-    el.addEventListener("ended", onEnded);
-    return () => el.removeEventListener("ended", onEnded);
-  }, [playlist.length]);
 
   const clickVillage = () => {
     setState((s0) => {
@@ -797,6 +776,13 @@ export default function App() {
               title="Reduce motion"
             >
               {state.settings.reducedMotion ? "Motion: Low" : "Motion: Full"}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setSettingsOpen(true)}
+              title="Open settings"
+            >
+              ⚙ Settings
             </Button>
             <Button variant="danger" onClick={doReset} title="Reset progress">
               Reset
@@ -1086,6 +1072,17 @@ export default function App() {
         </div>
       )}
 
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          state={state}
+          setState={setState}
+          playlist={playlist}
+          track={track}
+          setTrack={setTrack}
+        />
+      )}
+
       {tutorialOn && tutorialStepData && (
         <TutorialOverlay
           rect={tutorialRect}
@@ -1107,8 +1104,328 @@ export default function App() {
         setTrack={setTrack}
         audioRef={audioRef}
         enabled={state.settings.musicEnabled}
-        volume={state.settings.musicVolume}
+        volume={clamp(
+          (state.settings.masterVolume ?? 0.85) *
+            (state.settings.musicVolume ?? 0.65),
+          0,
+          1
+        )}
       />
+    </div>
+  );
+}
+
+function SettingsModal({
+  onClose,
+  state,
+  setState,
+  playlist,
+  track,
+  setTrack,
+}) {
+  const s = state?.settings || {};
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  const setSettings = (patch) => {
+    setState((prev) => ({
+      ...prev,
+      settings: {
+        ...prev.settings,
+        ...patch,
+      },
+    }));
+  };
+
+  const setUi = (patch) => {
+    setState((prev) => ({
+      ...prev,
+      ui: {
+        ...prev.ui,
+        ...patch,
+      },
+    }));
+  };
+
+  const currentTrack = playlist?.length
+    ? playlist[clamp(track, 0, playlist.length - 1)]
+    : null;
+
+  const prevTrack = () => {
+    if (!playlist?.length) return;
+    setTrack((t) => (t - 1 + playlist.length) % playlist.length);
+  };
+
+  const nextTrack = () => {
+    if (!playlist?.length) return;
+    setTrack((t) => (t + 1) % playlist.length);
+  };
+
+  const pct = (v) => `${Math.round(clamp(v ?? 0, 0, 1) * 100)}%`;
+
+  const SliderRow = ({
+    label,
+    hint,
+    value,
+    min = 0,
+    max = 1,
+    step = 0.01,
+    onChange,
+  }) => (
+    <div className="settingRow">
+      <div>
+        <div className="settingLabel">{label}</div>
+        {hint ? <div className="settingHint">{hint}</div> : null}
+      </div>
+      <div className="rangeWrap">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
+        <div className="kv">{pct(value)}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      className="modalBackdrop"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose?.();
+      }}
+    >
+      <div className="modalCard" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="modalHeader">
+          <div className="modalTitle">Settings</div>
+          <Button variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        </div>
+
+        <div className="settingsGrid">
+          <div className="settingGroup">
+            <div className="settingGroupTitle">Audio</div>
+
+            <div className="settingRow">
+              <div>
+                <div className="settingLabel">Music</div>
+                <div className="settingHint">
+                  Enable / disable the soundtrack
+                </div>
+              </div>
+              <div className="checkRow">
+                <span className="kv">{s.musicEnabled ? "On" : "Off"}</span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(s.musicEnabled)}
+                  onChange={(e) =>
+                    setSettings({ musicEnabled: e.target.checked })
+                  }
+                />
+              </div>
+            </div>
+
+            <SliderRow
+              label="Master Volume"
+              hint="Affects music and future SFX"
+              value={clamp(s.masterVolume ?? 0.85, 0, 1)}
+              onChange={(v) => setSettings({ masterVolume: v })}
+            />
+            <SliderRow
+              label="Music Volume"
+              hint="Soundtrack loudness"
+              value={clamp(s.musicVolume ?? 0.65, 0, 1)}
+              onChange={(v) => setSettings({ musicVolume: v })}
+            />
+            <SliderRow
+              label="SFX Volume"
+              hint="Reserved for future sound effects"
+              value={clamp(s.sfxVolume ?? 0.75, 0, 1)}
+              onChange={(v) => setSettings({ sfxVolume: v })}
+            />
+
+            <div className="settingRow">
+              <div>
+                <div className="settingLabel">Current Track</div>
+                <div className="settingHint">
+                  {currentTrack ? currentTrack.title : "No tracks found"}
+                </div>
+              </div>
+              <div
+                style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}
+              >
+                <Button
+                  variant="secondary"
+                  onClick={prevTrack}
+                  disabled={!playlist?.length}
+                >
+                  ◀
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={nextTrack}
+                  disabled={!playlist?.length}
+                >
+                  ▶
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="settingGroup">
+            <div className="settingGroupTitle">Graphics</div>
+
+            <div className="settingRow">
+              <div>
+                <div className="settingLabel">Pixel Scale</div>
+                <div className="settingHint">1 = sharpest, 4 = chunkiest</div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <select
+                  value={String(Math.round(clamp(s.pixelScale ?? 2, 1, 4)))}
+                  onChange={(e) =>
+                    setSettings({ pixelScale: Number(e.target.value) })
+                  }
+                >
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                </select>
+              </div>
+            </div>
+
+            <SliderRow
+              label="Stars Density"
+              hint="How sparkly the sky feels"
+              value={clamp(s.starsDensity ?? 1, 0.2, 2)}
+              min={0.2}
+              max={2}
+              step={0.05}
+              onChange={(v) => setSettings({ starsDensity: v })}
+            />
+
+            <div className="settingRow">
+              <div>
+                <div className="settingLabel">Reduced Motion</div>
+                <div className="settingHint">
+                  Less animation, better for performance
+                </div>
+              </div>
+              <div className="checkRow">
+                <span className="kv">{s.reducedMotion ? "On" : "Off"}</span>
+                <input
+                  type="checkbox"
+                  checked={Boolean(s.reducedMotion)}
+                  onChange={(e) =>
+                    setSettings({ reducedMotion: e.target.checked })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="settingGroup">
+            <div className="settingGroupTitle">Lighting</div>
+
+            <div className="settingRow">
+              <div>
+                <div className="settingLabel">Advanced Lighting</div>
+                <div className="settingHint">
+                  Darkness mask + dynamic lights
+                </div>
+              </div>
+              <div className="checkRow">
+                <span className="kv">
+                  {s.lightingEnabled === false ? "Off" : "On"}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={s.lightingEnabled !== false}
+                  onChange={(e) =>
+                    setSettings({ lightingEnabled: e.target.checked })
+                  }
+                />
+              </div>
+            </div>
+
+            <SliderRow
+              label="Lighting Intensity"
+              hint="Higher = darker nights + stronger lamps"
+              value={clamp(s.lightingIntensity ?? 0.85, 0, 1)}
+              onChange={(v) => setSettings({ lightingIntensity: v })}
+            />
+
+            <div className="settingRow">
+              <div>
+                <div className="settingLabel">Bloom</div>
+                <div className="settingHint">
+                  Soft glow around light sources
+                </div>
+              </div>
+              <div className="checkRow">
+                <span className="kv">
+                  {s.bloomEnabled === false ? "Off" : "On"}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={s.bloomEnabled !== false}
+                  onChange={(e) =>
+                    setSettings({ bloomEnabled: e.target.checked })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="settingGroup">
+            <div className="settingGroupTitle">Gameplay</div>
+
+            <div className="settingRow">
+              <div>
+                <div className="settingLabel">Tutorial</div>
+                <div className="settingHint">
+                  Restart the tutorial overlay from step 1
+                </div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setUi({
+                      tutorialHidden: false,
+                      tutorialStep: 0,
+                      tutorialActive: true,
+                    });
+                  }}
+                >
+                  Restart
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="settingsFooter">
+          <div style={{ opacity: 0.7, fontSize: 11 }}>
+            Tip: if music doesn&apos;t start immediately, click once anywhere
+            (browser autoplay policy).
+          </div>
+          <Button variant="secondary" onClick={onClose}>
+            Resume
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1116,7 +1433,10 @@ export default function App() {
 function TrackBinder({ playlist, track, setTrack, audioRef, enabled, volume }) {
   useEffect(() => {
     const el = audioRef.current;
-    if (!el || !playlist.length) return;
+    if (!el) return;
+    el.volume = clamp(volume ?? 0.65, 0, 1);
+    el.muted = !enabled;
+    if (!playlist.length) return;
     const idx = clamp(track, 0, playlist.length - 1);
     if (el.src !== playlist[idx].url) {
       el.src = playlist[idx].url;
@@ -1124,13 +1444,28 @@ function TrackBinder({ playlist, track, setTrack, audioRef, enabled, volume }) {
         el.load();
       } catch {}
     }
-    el.volume = clamp(volume ?? 0.65, 0, 1);
-    el.muted = !enabled;
     if (enabled) {
       const p = el.play();
       if (p && typeof p.catch === "function") p.catch(() => {});
     }
   }, [playlist, track, enabled, volume, audioRef]);
+
+  // Autoplay policies require a user gesture. This makes sure we "unlock" audio
+  // as soon as the player clicks/taps anywhere, without restarting playback.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    const tryPlay = () => {
+      if (!enabled) return;
+      if (!playlist.length) return;
+      if (!el.paused) return;
+      const p = el.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    };
+    const onPointerDown = () => tryPlay();
+    document.addEventListener("pointerdown", onPointerDown, { passive: true });
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [enabled, playlist.length, audioRef]);
 
   useEffect(() => {
     const el = audioRef.current;
