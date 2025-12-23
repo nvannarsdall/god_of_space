@@ -36,6 +36,11 @@ function baseState() {
     t: 0,
     seed: Math.floor(Math.random() * 1e9),
 
+    meta: {
+      cycles: 0,
+      memory: 0,
+    },
+
     followers: 0,
     devotion: 0, // Reverence
     power: 0, // Authority
@@ -67,11 +72,11 @@ function baseState() {
 
     unlocked: { awakened: false, convert: false, sky: false },
     ui: {
-      tutorialHidden: false,
+      tutorialHidden: true,
       tab: "village",
       screen: "menu",
       tutorialStep: 0,
-      tutorialActive: true,
+      tutorialActive: false,
       introSeen: false,
     },
 
@@ -152,6 +157,8 @@ function migrateState(s) {
     },
     next.ui || {}
   );
+  next.meta = Object.assign({ cycles: 0, memory: 0 }, next.meta || {});
+
   next.settings = Object.assign(
     {
       autosave: true,

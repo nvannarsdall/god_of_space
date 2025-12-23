@@ -1,10 +1,4 @@
-import React, {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "../components/ui";
 
 function TutorialOverlay({
@@ -23,16 +17,6 @@ function TutorialOverlay({
     w: window.innerWidth,
     h: window.innerHeight,
   });
-
-  const panelRef = useRef(null);
-  const [panelBox, setPanelBox] = useState({ w: 520, h: 220 });
-
-  useLayoutEffect(() => {
-    const el = panelRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    if (r.width && r.height) setPanelBox({ w: r.width, h: r.height });
-  }, [title, body, step, total, nextLabel, showNext]);
 
   // Keep track of window size to recalculate positions on resize
   useEffect(() => {
@@ -60,75 +44,21 @@ function TutorialOverlay({
   // Logic: If the MAIN target (first one) is in the top 60% of screen, dock text at bottom.
   // Otherwise dock text at top. This prevents the text from covering the target.
   const mainTarget = rs[0];
+  const isTargetHigh = mainTarget
+    ? mainTarget.y + mainTarget.h / 2 < viewport.h * 0.6
+    : true;
 
-  const panelStyle = useMemo(() => {
-    const margin = 18;
-    const w = Math.min(600, viewport.w * 0.9);
-    const h = Math.min(panelBox.h, viewport.h * 0.45);
-
-    const candidates = [
-      { key: "tl", top: margin, left: margin },
-      { key: "tr", top: margin, right: margin },
-      { key: "bl", bottom: margin, left: margin },
-      { key: "br", bottom: margin, right: margin },
-    ];
-
-    const rectList = rs.length ? rs : mainTarget ? [mainTarget] : [];
-
-    const scoreCandidate = (c) => {
-      const x = c.left != null ? c.left : viewport.w - margin - w;
-      const y = c.top != null ? c.top : viewport.h - margin - h;
-
-      const panelRect = { x, y, w, h };
-
-      let overlap = 0;
-      let minDist = Infinity;
-
-      for (const r of rectList) {
-        const ox = Math.max(
-          0,
-          Math.min(panelRect.x + panelRect.w, r.x + r.w) -
-            Math.max(panelRect.x, r.x)
-        );
-        const oy = Math.max(
-          0,
-          Math.min(panelRect.y + panelRect.h, r.y + r.h) -
-            Math.max(panelRect.y, r.y)
-        );
-        overlap += ox * oy;
-
-        const cx = panelRect.x + panelRect.w / 2;
-        const cy = panelRect.y + panelRect.h / 2;
-        const tx = r.x + r.w / 2;
-        const ty = r.y + r.h / 2;
-        const d = Math.hypot(cx - tx, cy - ty);
-        minDist = Math.min(minDist, d);
-      }
-
-      // Prefer zero overlap; otherwise maximize distance from targets
-      return { overlap, dist: minDist, c };
-    };
-
-    const scored = candidates.map(scoreCandidate);
-    scored.sort((a, b) => {
-      if (a.overlap !== b.overlap) return a.overlap - b.overlap;
-      return b.dist - a.dist;
-    });
-
-    const best = scored[0]?.c || candidates[3];
-
-    return {
-      position: "fixed",
-      width: `${w}px`,
-      zIndex: 100,
-      transition:
-        "top 0.2s ease, bottom 0.2s ease, left 0.2s ease, right 0.2s ease",
-      ...(best.top != null ? { top: best.top } : { top: "auto" }),
-      ...(best.bottom != null ? { bottom: best.bottom } : { bottom: "auto" }),
-      ...(best.left != null ? { left: best.left } : { left: "auto" }),
-      ...(best.right != null ? { right: best.right } : { right: "auto" }),
-    };
-  }, [viewport.w, viewport.h, panelBox.h, rs, mainTarget]);
+  const panelStyle = {
+    position: "fixed",
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: "min(600px, 90vw)",
+    zIndex: 100, // Must be above the SVG mask
+    transition: "top 0.3s ease, bottom 0.3s ease",
+    // Docking Logic:
+    top: isTargetHigh ? "auto" : "100px",
+    bottom: isTargetHigh ? "50px" : "auto",
+  };
 
   return (
     <div
