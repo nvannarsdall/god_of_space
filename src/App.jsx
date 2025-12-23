@@ -247,12 +247,12 @@ function IntroCutscene({ onDone }) {
       );
       monolithGlow.addColorStop(
         0,
-        lit ? "rgba(255,208,160,0.25)" : "rgba(180,190,220,0.12)"
+        lit ? "rgba(255,208,160,0.45)" : "rgba(180,190,220,0.2)"
       );
       monolithGlow.addColorStop(1, "rgba(255,208,160,0)");
       ctx.globalCompositeOperation = "screen";
       ctx.fillStyle = monolithGlow;
-      ctx.fillRect(0, 0, W, H);
+      ctx.fillRect(0, groundY - 200, W, 260);
       ctx.restore();
       if (darkBlend > 0.3) {
         ctx.save();

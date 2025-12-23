@@ -462,7 +462,7 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
           hutGlow.addColorStop(1, "rgba(255,220,160,0)");
           ctx.globalCompositeOperation = "screen";
           ctx.fillStyle = hutGlow;
-          ctx.fillRect(0, 0, W, H);
+          ctx.fillRect(W * 0.16, groundY - 80, W * 0.2, 140);
           ctx.restore();
         }
 
@@ -479,18 +479,18 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         );
         monolithGlow.addColorStop(
           0,
-          lit ? "rgba(255,214,168,0.22)" : "rgba(160,170,200,0.14)"
+          lit ? "rgba(255,214,168,0.4)" : "rgba(160,170,200,0.25)"
         );
         monolithGlow.addColorStop(1, "rgba(255,214,168,0)");
         ctx.globalCompositeOperation = "screen";
         ctx.fillStyle = monolithGlow;
-        ctx.fillRect(0, 0, W, H);
+        ctx.fillRect(W * 0.4, groundY - 140, W * 0.32, 220);
         ctx.restore();
 
         for (let i = 0; i < Math.min(huts, 12); i++) {
           const hx = W * (0.35 + i * 0.05);
           const hy = groundY + 8 + (i % 2) * 4;
-          drawHouse(hx, hy, 1.8, lit);
+          drawHouse(hx, hy, 1.6, false);
         }
 
         if (temples > 0)
