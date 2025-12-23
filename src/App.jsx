@@ -60,7 +60,7 @@ function IntroCutscene({ onDone }) {
       if (!anim.current.start) anim.current.start = now;
       const t = (now - anim.current.start) / 1000;
 
-      const phaseNow = t >= TIMING.ctaStart ? 2 : t >= 10 ? 1 : 0;
+      const phaseNow = t >= 10 ? 2 : t >= 6 ? 1 : 0;
       if (phaseNow !== phase) {
         setPhase(phaseNow);
       }
@@ -74,130 +74,45 @@ function IntroCutscene({ onDone }) {
           r: 1 + Math.random() * 1.5,
           tw: Math.random() * Math.PI * 2,
           sp: 0.4 + Math.random() * 0.8,
-          fadeAt:
-            TIMING.vanishStart + Math.random() * Math.max(1, vanishWindow - 1),
-          fadeDur: 0.8 + Math.random() * 1.4,
+          fadeAt: 6 + Math.random() * 4,
+          fadeDur: 0.6 + Math.random() * 0.8,
         }));
         anim.current.moon = {
           x: W * 0.72,
           y: H * 0.22,
           r: 16,
-          fadeAt: TIMING.vanishStart + vanishWindow * 0.45,
-          fadeDur: 1.8,
+          fadeAt: 7.5,
+          fadeDur: 1.4,
         };
       }
 
-      const flashBlend =
-        t >= TIMING.flashStart && t <= TIMING.flashEnd
-          ? clamp(
-              (t - TIMING.flashStart) /
-                (TIMING.flashEnd - TIMING.flashStart),
-              0,
-              1
-            )
-          : 0;
-      const darkBlend = clamp(
-        (t - TIMING.darkStart) / (TIMING.darkEnd - TIMING.darkStart),
-        0,
-        1
-      );
-      const dayBlend = clamp(1 - darkBlend, 0, 1);
-      const blackoutBlend = clamp((t - TIMING.vanishEnd) / 1.5, 0, 1);
-      const emberBlend = clamp((t - 11.5) / 3.5, 0, 1);
+      const flashStart = 2.0;
+      const flashEnd = 3.2;
+      const darkStart = 3.2;
+      const darkEnd = 6.0;
+      const darkBlend = clamp((t - darkStart) / (darkEnd - darkStart), 0, 1);
+      const emberBlend = clamp((t - 9) / 3, 0, 1);
       const lerp = (a, b, amt) => Math.round(a + (b - a) * amt);
 
       const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
-      const topR = lerp(96, 6, darkBlend);
-      const topG = lerp(178, 10, darkBlend);
-      const topB = lerp(238, 20, darkBlend);
-      const botR = lerp(178, 3, darkBlend);
-      const botG = lerp(210, 6, darkBlend);
-      const botB = lerp(252, 14, darkBlend);
+      const topR = lerp(84, 8, darkBlend);
+      const topG = lerp(164, 10, darkBlend);
+      const topB = lerp(232, 24, darkBlend);
+      const botR = lerp(168, 4, darkBlend);
+      const botG = lerp(206, 6, darkBlend);
+      const botB = lerp(248, 18, darkBlend);
       skyGrad.addColorStop(0, `rgb(${topR}, ${topG}, ${topB})`);
       skyGrad.addColorStop(1, `rgb(${botR}, ${botG}, ${botB})`);
       ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, W, H);
 
-      if (dayBlend > 0.1) {
-        const sunX = W * 0.8;
-        const sunY = H * 0.22;
-        const sunGrad = ctx.createRadialGradient(
-          sunX,
-          sunY,
-          10,
-          sunX,
-          sunY,
-          140
-        );
-        sunGrad.addColorStop(0, "rgba(255, 240, 210, 0.85)");
-        sunGrad.addColorStop(0.4, "rgba(255, 220, 180, 0.35)");
-        sunGrad.addColorStop(1, "rgba(255, 200, 140, 0)");
+      if (t >= flashStart && t <= flashEnd) {
+        const flashT = (t - flashStart) / (flashEnd - flashStart);
+        const flicker = Math.abs(Math.sin(flashT * Math.PI * 10));
         ctx.save();
-        ctx.globalAlpha = 0.7 * dayBlend;
-        ctx.fillStyle = sunGrad;
-        ctx.fillRect(0, 0, W, H);
-        ctx.restore();
-      }
-
-      const drawCloudBand = (y, amp, speed, color, alpha) => {
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        for (let x = 0; x <= W; x += 24) {
-          const wave =
-            Math.sin(x * 0.02 + t * speed) * amp +
-            Math.cos(x * 0.008 - t * speed * 0.7) * (amp * 0.6);
-          ctx.lineTo(x, y + wave);
-        }
-        ctx.lineTo(W, y + 24);
-        ctx.lineTo(0, y + 24);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
-      };
-
-      drawCloudBand(
-        H * 0.18,
-        6,
-        0.4,
-        "rgba(195, 214, 240, 0.6)",
-        0.4 * dayBlend
-      );
-      drawCloudBand(
-        H * 0.3,
-        8,
-        0.3,
-        "rgba(168, 196, 228, 0.55)",
-        0.35 * dayBlend
-      );
-      drawCloudBand(
-        H * 0.42,
-        10,
-        0.25,
-        "rgba(140, 170, 204, 0.5)",
-        0.3 * dayBlend
-      );
-
-      if (flashBlend > 0) {
-        const flicker = Math.abs(Math.sin(flashBlend * Math.PI * 8));
-        ctx.save();
-        ctx.globalAlpha = 0.35 + 0.55 * flicker;
+        ctx.globalAlpha = 0.35 + 0.5 * flicker;
         ctx.fillStyle = "#f9f3ff";
         ctx.fillRect(0, 0, W, H);
-        ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + 0.4 * flicker})`;
-        ctx.lineWidth = 2;
-        for (let i = 0; i < 3; i++) {
-          const baseX = W * (0.2 + i * 0.3 + Math.sin(t * 4 + i) * 0.05);
-          ctx.beginPath();
-          ctx.moveTo(baseX, H * 0.05);
-          for (let seg = 0; seg < 6; seg++) {
-            const jitter = Math.sin(t * 6 + seg * 1.4 + i) * 12;
-            ctx.lineTo(baseX + jitter, H * (0.15 + seg * 0.11));
-          }
-          ctx.stroke();
-        }
         ctx.restore();
       }
 
@@ -217,10 +132,10 @@ function IntroCutscene({ onDone }) {
         ctx.restore();
       }
 
-      if (anim.current.moon && darkBlend > 0.2) {
+      if (anim.current.moon && darkBlend > 0.15) {
         const { x, y, r, fadeAt, fadeDur } = anim.current.moon;
         const moonFade = 1 - clamp((t - fadeAt) / fadeDur, 0, 1);
-        const moonAlpha = clamp((darkBlend - 0.2) / 0.8, 0, 1) * moonFade;
+        const moonAlpha = clamp((darkBlend - 0.15) / 0.85, 0, 1) * moonFade;
         if (moonAlpha > 0.02) {
           ctx.save();
           ctx.globalAlpha = moonAlpha;
@@ -230,14 +145,6 @@ function IntroCutscene({ onDone }) {
           ctx.fill();
           ctx.restore();
         }
-      }
-
-      if (blackoutBlend > 0) {
-        ctx.save();
-        ctx.globalAlpha = 0.85 * blackoutBlend;
-        ctx.fillStyle = "#05040a";
-        ctx.fillRect(0, 0, W, H * 0.72);
-        ctx.restore();
       }
 
       // Horizon layers
@@ -309,11 +216,11 @@ function IntroCutscene({ onDone }) {
         ctx.shadowOffsetY = 0;
       };
 
-      if (t > 1 && t < 5.5)
+      if (t > 0.8 && t < 4)
         drawText("THE SKY HELD ITS BREATH", H / 3);
-      if (t > 5.7 && t < 10.5)
+      if (t > 4.2 && t < 8)
         drawText("A FLASH SHATTERED THE DAY", H / 3, "#f2b97d");
-      if (t > 10.7)
+      if (t > 8.2)
         drawText("THEN EVEN STARS FELL QUIET", H / 3, "#f5e1c5");
 
       rafRef.current = requestAnimationFrame(loop);
