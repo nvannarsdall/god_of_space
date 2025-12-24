@@ -9,6 +9,8 @@ function compute(s) {
   const festivals = s.village.festivals || 0;
   const council = s.village.council || 0;
 
+  const faith = (typeof s.faith === "number" ? s.faith : (faith || 0));
+
   const starsong = s.sky.starsong || 0;
   const orbits = s.sky.orbits || 0;
   const telescope = s.sky.telescope || 0;
@@ -60,7 +62,7 @@ function compute(s) {
         const veilNow = clamp(1 - starsong * 0.09, 0.08, 1);
         const veilPressure = 1 + 0.1 * veilNow;
         // Small baseline + scales gently with current stored devotion
-        const base = 0.06 + 0.0022 * (s.devotion || 0);
+        const base = 0.06 + 0.0022 * (faith || 0);
         return (base * veilPressure) / support;
       })()
     : 0;
@@ -110,6 +112,7 @@ function compute(s) {
     cap,
     followerRate,
     devotionRate,
+    faithRate: devotionRate,
     emberRate,
     devotionDecayRate,
     prosperityRate: finalProsperityRate,

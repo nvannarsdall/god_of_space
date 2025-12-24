@@ -42,7 +42,8 @@ function baseState() {
     },
 
     followers: 0,
-    devotion: 0, // Reverence
+    faith: 0, // Faith (Phase C)
+    devotion: 0, // legacy key (was Reverence)
     power: 0, // Authority
 
     embers: 0, // Divine Embers (Phase B early-game)
@@ -73,7 +74,7 @@ function baseState() {
       portentUntil: 0,
     },
 
-    unlocked: { awakened: false, convert: false, sky: false },
+    unlocked: { awakened: false, faith: false, starlight: false, constellations: false, convert: false, sky: false },
     ui: {
       tutorialHidden: true,
       tab: "village",
@@ -123,6 +124,10 @@ function migrateState(s) {
   if (!next.stats || typeof next.stats !== "object") next.stats = {};
   if (typeof next.stats.passiveEmbers !== "number") next.stats.passiveEmbers = 0;
 
+  // Phase C: ensure Faith exists (alias legacy devotion)
+  if (typeof next.faith !== "number") next.faith = typeof next.devotion === "number" ? next.devotion : 0;
+  if (typeof next.devotion !== "number") next.devotion = next.faith;
+
 // critical bug fix: if you have followers, you're awakened
   if (next.followers >= 1) next.unlocked.awakened = true;
 
@@ -133,8 +138,16 @@ function migrateState(s) {
   if ((next.village?.temples || 0) > 0 || (next.sky?.starsong || 0) > 0)
     next.unlocked.sky = true;
 
-  // sanity
+    // Phase C unlock order: Faith unlocks after basic shelter is established
+  if ((next.village?.huts || 0) >= 3 || (next.embers || 0) >= 50) next.unlocked.faith = true;
+  // Starlight unlocks after the first Temple is raised (and Faith is present)
+  if ((next.village?.temples || 0) >= 1) next.unlocked.starlight = true;
+  // Constellations unlock after meaningful starlight is gathered
+  if ((next.stardust || 0) >= 20) next.unlocked.constellations = true;
+
+// sanity
   next.followers = Math.max(0, next.followers);
+  next.faith = Math.max(0, next.faith);
   next.devotion = Math.max(0, next.devotion);
   next.power = Math.max(0, next.power);
   next.whispers = Math.max(0, next.whispers);
@@ -149,7 +162,7 @@ function migrateState(s) {
     next.sky || {}
   );
   next.unlocked = Object.assign(
-    { awakened: false, convert: false, sky: false },
+    { awakened: false, faith: false, starlight: false, constellations: false, convert: false, sky: false },
     next.unlocked || {}
   );
 

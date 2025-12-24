@@ -631,7 +631,8 @@ export default function App() {
 
   const tab = state.ui.tab;
   const awakened = state.unlocked.awakened;
-  const hasReverenceLayer = (state.devotion || 0) > 0 || state.unlocked?.devotion;
+  const faith = (typeof state.faith === "number" ? state.faith : (state.devotion || 0));
+  const hasFaithLayer = faith > 0 || state.unlocked?.faith;
   const tutorialOn = Boolean(
     !showStart && state.ui?.tutorialActive && state.ui?.screen === "tutorial"
   );
@@ -709,7 +710,8 @@ export default function App() {
           ...s,
           t: s.t + dt,
           followers: Math.min(c.cap, s.followers + c.followerRate * dt),
-          devotion: Math.max(0, s.devotion + c.devotionRate * dt),
+          devotion: Math.max(0, (typeof s.devotion === "number" ? s.devotion : (s.faith || 0)) + (c.devotionRate || 0) * dt),
+          faith: Math.max(0, (typeof s.faith === "number" ? s.faith : (s.devotion || 0)) + (c.devotionRate || 0) * dt),
           whispers: Math.max(0, s.whispers + (c.omenRate || 0) * dt),
           embers: Math.max(0, (s.embers || 0) + (c.emberRate || 0) * dt),
           stats: {
@@ -740,11 +742,8 @@ export default function App() {
     setState((s0) => {
       const s = migrateState(s0);
       const c = compute(s);
-      const hasReverenceLayer = (s.devotion || 0) > 0 || s.unlocked?.devotion;
-      if (hasReverenceLayer) {
-        const gain = Math.max(0.25, c.omenClickGain || 1);
-        return { ...s, whispers: (s.whispers || 0) + gain };
-      }
+      const faith = (typeof state.faith === "number" ? state.faith : (state.devotion || 0));
+  const hasFaithLayer = faith > 0 || state.unlocked?.faith;
       const emberGain = Math.max(1, c.emberClickGain || 1);
       return { ...s, embers: (s.embers || 0) + emberGain };
     });
@@ -810,12 +809,25 @@ export default function App() {
           village: { ...s.village, [u.id]: lvl + 1 },
         });
       }
+      if (u.currency === "faith") {
+        if (!s.unlocked.faith) return s;
+        if ((s.faith || 0) < cost) return s;
+        return migrateState({
+          ...s,
+          faith: (s.faith || 0) - cost,
+          // keep legacy key in sync for older UI/logic that still references devotion
+          devotion: Math.max(0, (typeof s.devotion === "number" ? s.devotion : (s.faith || 0)) - cost),
+          village: { ...s.village, [u.id]: lvl + 1 },
+        });
+      }
+
       if (u.currency === "devotion") {
         if (!s.unlocked.awakened) return s;
         if (s.devotion < cost) return s;
         return migrateState({
           ...s,
           devotion: s.devotion - cost,
+          faith: Math.max(0, (typeof s.faith === "number" ? s.faith : s.devotion) - cost),
           village: { ...s.village, [u.id]: lvl + 1 },
         });
       }
@@ -1212,13 +1224,13 @@ export default function App() {
                     src="/assets/pixel/icon_reverence.png"
                     alt=""
                   />{" "}
-                  Reverence
+                  Faith
                 </div>
-                <div className="statValueSmall">{fmt(state.devotion)}</div>
+                <div className="statValueSmall">{fmt(state.faith || state.devotion)}</div>
               </div>
               <div className="statSub">
-                Rate: {fmt(computed.devotionRate)}/s{" "}
-                {awakened ? "" : "(locked)"}
+                Rate: {fmt(computed.faithRate ?? computed.devotionRate)}/s{" "}
+                {state.unlocked.faith ? "" : "(locked)"}
               </div>
             </div>
             <div className="statBox">
@@ -1294,20 +1306,22 @@ export default function App() {
                 }`}
                 ref={upgradesRef}
               >
-                {(hasReverenceLayer ? VILLAGE_UPGRADES : VILLAGE_UPGRADES.filter((u) => u.id === "huts")).map((u) => {
+                {(hasFaithLayer ? VILLAGE_UPGRADES : VILLAGE_UPGRADES.filter((u) => u.id === "huts")).map((u) => {
                   const lvl = state.village[u.id] || 0;
                   const cost = upgradeCost(u.baseCost, u.growth, lvl);
-                  const currency = u.currency || "devotion";
+                  const currency = u.currency || "faith";
                   const have =
                     currency === "embers"
                       ? state.embers || 0
                       : currency === "stardust"
                       ? state.stardust || 0
-                      : state.devotion || 0;
+                      : (state.faith || state.devotion || 0);
 
                   const can =
                     currency === "embers"
                       ? have >= cost
+                      : currency === "faith"
+                      ? state.unlocked.faith && have >= cost
                       : currency === "devotion"
                       ? awakened && have >= cost
                       : have >= cost;
@@ -1317,7 +1331,7 @@ export default function App() {
                       ? "Divine Embers"
                       : currency === "stardust"
                       ? "Starlight"
-                      : "Reverence";
+                      : "Faith";
                   return (
                     <div key={u.id} className="item">
                       <div className="itemTop">
