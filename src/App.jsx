@@ -15,6 +15,8 @@ import {
 } from "./game/state";
 import TutorialOverlay from "./tutorial/TutorialOverlay";
 import { buildTutorialSteps } from "./tutorial/tutorialData";
+import ObjectiveHUD from "./systems/ObjectiveHUD";
+import { getObjective } from "./systems/objectives";
 import { applyMusicSettings, getMusic } from "./systems/audio";
 
 // Music is managed by a single authority in src/systems/audio.js
@@ -578,6 +580,7 @@ export default function App() {
     !hasProgress;
 
   const computed = useMemo(() => compute(devFreezeState(state)), [state]);
+  const objective = useMemo(() => getObjective(state, computed), [state, computed]);
   const [toast, setToast] = useState(null);
 
   // "Start Game" gate (autoplay policy):
@@ -628,6 +631,7 @@ export default function App() {
 
   const tab = state.ui.tab;
   const awakened = state.unlocked.awakened;
+  const hasReverenceLayer = (state.devotion || 0) > 0 || state.unlocked?.devotion;
   const tutorialOn = Boolean(
     !showStart && state.ui?.tutorialActive && state.ui?.screen === "tutorial"
   );
@@ -707,6 +711,14 @@ export default function App() {
           followers: Math.min(c.cap, s.followers + c.followerRate * dt),
           devotion: Math.max(0, s.devotion + c.devotionRate * dt),
           whispers: Math.max(0, s.whispers + (c.omenRate || 0) * dt),
+          embers: Math.max(0, (s.embers || 0) + (c.emberRate || 0) * dt),
+          stats: {
+            ...(s.stats || {}),
+            passiveEmbers: Math.max(
+              0,
+              (s.stats?.passiveEmbers || 0) + (c.emberRate || 0) * dt
+            ),
+          },
           stardust: s.stardust,
         });
       });
@@ -723,11 +735,18 @@ export default function App() {
   }, [state.settings.musicEnabled, state.settings.musicVolume]);
 
   const clickVillage = () => {
+    // Phase B: the first 10–15 minutes use Divine Embers as the primary active gain.
+    // We keep Omens/Whispers as a later-layer currency (unlocked in Phase C), so early clicks grant Embers.
     setState((s0) => {
       const s = migrateState(s0);
       const c = compute(s);
-      const gain = Math.max(0.25, c.omenClickGain || 1);
-      return { ...s, whispers: s.whispers + gain };
+      const hasReverenceLayer = (s.devotion || 0) > 0 || s.unlocked?.devotion;
+      if (hasReverenceLayer) {
+        const gain = Math.max(0.25, c.omenClickGain || 1);
+        return { ...s, whispers: (s.whispers || 0) + gain };
+      }
+      const emberGain = Math.max(1, c.emberClickGain || 1);
+      return { ...s, embers: (s.embers || 0) + emberGain };
     });
   };
 
@@ -783,6 +802,14 @@ export default function App() {
       // The tutorial must be informative only (never blocking).
       const lvl = which === "village" ? s.village[u.id] : s.sky[u.id];
       const cost = upgradeCost(u.baseCost, u.growth, lvl);
+      if (u.currency === "embers") {
+        if ((s.embers || 0) < cost) return s;
+        return migrateState({
+          ...s,
+          embers: (s.embers || 0) - cost,
+          village: { ...s.village, [u.id]: lvl + 1 },
+        });
+      }
       if (u.currency === "devotion") {
         if (!s.unlocked.awakened) return s;
         if (s.devotion < cost) return s;
@@ -849,6 +876,19 @@ export default function App() {
       ...s,
       ui: { ...s.ui, introSeen: false, screen: "menu" },
     }));
+  };
+
+
+  const channelPower = () => {
+    setState((s0) => {
+      const s = migrateState(s0);
+      // Primary action (Phase B): convert a moment of will into a Divine Ember.
+      const gain = 1;
+      return migrateState({
+        ...s,
+        embers: (s.embers || 0) + gain,
+      });
+    });
   };
 
   const advanceTutorial = () => {
@@ -1027,17 +1067,18 @@ export default function App() {
     return (
       <IntroCutscene
         onDone={() => {
-          // Start the tutorial immediately after the intro (no menu).
+          // Phase B: proceed directly into gameplay with the Objective HUD.
+          // (Tutorial overlay is deprecated and must not run.)
           setState((s0) => {
             const keep = s0.settings;
             const next = baseState();
             next.settings = { ...keep, musicEnabled: true };
             next.ui = {
               ...next.ui,
-              screen: "tutorial",
-              tutorialActive: true,
+              screen: "game",
+              tutorialActive: false,
               tutorialStep: 0,
-              tutorialHidden: false,
+              tutorialHidden: true,
               tab: "village",
               introSeen: true,
               settingsOpen: false,
@@ -1051,6 +1092,7 @@ export default function App() {
 
   return (
     <div className="appRoot">
+      <ObjectiveHUD objective={objective} />
       <div ref={worldRef} style={{ position: "fixed", inset: 0 }}>
         <WorldCanvas
           mode={tab}
@@ -1138,56 +1180,31 @@ export default function App() {
             <div className="statBox">
               <div className="rowBetween">
                 <div className="statLabel">
-                  <img
-                    className="ico"
-                    src="/assets/pixel/icon_omens.png"
-                    alt=""
-                  />{" "}
-                  Omens
+                  <span className="ico" style={{ display: "inline-block", width: 14 }} />
+                  Divine Embers
                 </div>
-                <div className="statValueSmall">{fmt(state.whispers)}</div>
+                <div className="statValueSmall">{fmt(state.embers)}</div>
               </div>
               <div className="statSub">
-                Earned from ritual clicks on the village.
+                The first spark of your returning power. Earned by Channeling and sustained by Homes.
               </div>
-              {!awakened && (
+              <div className="statSub">
+                Passive: +{fmt(computed.emberRate)}/s
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <Button onClick={channelPower}>Channel Power (+1 Ember)</Button>
+              </div>
+
+              {/* Later-layer actions (kept, but hidden during Phase B) */}
+              {((state.devotion || 0) > 0 || state.unlocked?.devotion) && (
                 <>
-                  <Progress value={(state.whispers / seekerCost) * 100} />
-                  <div className="statSub">Seeker cost: {seekerCost}</div>
-                  <div
-                    ref={seekerBtnRef}
-                    className={
-                      tutorialStepData?.id === "seeker" ? "tutTarget" : ""
-                    }
-                    style={{ marginTop: 8 }}
-                  >
-                    <Button onClick={callSeeker} disabled={!canCallSeeker}>
-                      Call a Seeker ({seekerCost})
-                    </Button>
-                  </div>
+                  <div style={{ height: 8 }} />
+                  <Button onClick={callSeeker} disabled={!canCallSeeker}>
+                    Call a Seeker ({seekerCost})
+                  </Button>
                 </>
               )}
-              {awakened && (
-                <div style={{ marginTop: 8 }}>
-                  <div
-                    className="rowBetween"
-                    style={{ gap: 10, flexWrap: "wrap" }}
-                  >
-                    <Button
-                      variant="secondary"
-                      onClick={invokePortent}
-                      disabled={state.whispers < PORTENT_COST || portentActive}
-                    >
-                      Ignite Portent ({PORTENT_COST})
-                    </Button>
-                    {portentActive && (
-                      <Pill>Portent: {Math.ceil(portentRemaining)}s</Pill>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            <div className="statBox">
+            </div><div className="statBox">
               <div className="rowBetween">
                 <div className="statLabel">
                   <img
@@ -1277,10 +1294,30 @@ export default function App() {
                 }`}
                 ref={upgradesRef}
               >
-                {VILLAGE_UPGRADES.map((u) => {
+                {(hasReverenceLayer ? VILLAGE_UPGRADES : VILLAGE_UPGRADES.filter((u) => u.id === "huts")).map((u) => {
                   const lvl = state.village[u.id] || 0;
                   const cost = upgradeCost(u.baseCost, u.growth, lvl);
-                  const can = awakened && state.devotion >= cost;
+                  const currency = u.currency || "devotion";
+                  const have =
+                    currency === "embers"
+                      ? state.embers || 0
+                      : currency === "stardust"
+                      ? state.stardust || 0
+                      : state.devotion || 0;
+
+                  const can =
+                    currency === "embers"
+                      ? have >= cost
+                      : currency === "devotion"
+                      ? awakened && have >= cost
+                      : have >= cost;
+
+                  const currencyLabel =
+                    currency === "embers"
+                      ? "Divine Embers"
+                      : currency === "stardust"
+                      ? "Starlight"
+                      : "Reverence";
                   return (
                     <div key={u.id} className="item">
                       <div className="itemTop">
@@ -1291,7 +1328,7 @@ export default function App() {
                       <div className="itemEffect">{u.effect(lvl)}</div>
                       <div className="rowBetween" style={{ marginTop: 10 }}>
                         <div className="smallText">
-                          Cost: <b>{fmt(cost)}</b> Reverence
+                          Cost: <b>{fmt(cost)}</b> {currencyLabel}
                         </div>
                         <div
                           ref={

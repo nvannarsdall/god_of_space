@@ -19,6 +19,9 @@ function compute(s) {
   let cap = 12 + huts * 6 + council * 25;
   cap *= 1 + transcend * 0.08;
 
+  // === DIVINE EMBERS (Phase B early loop) ===
+  const emberRate = Math.max(0, huts * 0.05);
+
   // === FOLLOWER GROWTH ===
   const growthAdd = huts >= 1 ? 0.07 + huts * 0.07 + farms * 0.11 : 0;
   const pressure = cap <= 0 ? 1 : clamp(1 - s.followers / cap, 0, 1);
@@ -102,10 +105,12 @@ function compute(s) {
     : 0;
 
   // Apply constellation bonuses (branching synergies)
-  const withBonuses = applyConstellationBonuses(s, {
+  let withBonuses = {
+
     cap,
     followerRate,
     devotionRate,
+    emberRate,
     devotionDecayRate,
     prosperityRate: finalProsperityRate,
     omenRate,
@@ -118,7 +123,12 @@ function compute(s) {
     villageClickMult,
     portentActive,
     constellationPointRate,
-  });
+    };
+
+  // Phase B: constellations are a later-layer system; don't apply bonuses until the sky layer is unlocked.
+  if (s.unlocked?.sky || (s.constellations?.unlocked || []).length > 0) {
+    withBonuses = applyConstellationBonuses(s, withBonuses);
+  }
 
   return withBonuses;
 }

@@ -413,31 +413,30 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       const lights = [];
       const lit = (st.devotion || 0) > 0;
 
-      // Village fire (main hut)
+      // Village fire / home lights
       if (!isSkyMode && lit) {
-        lights.push({
-          x: W * 0.26,
-          y: groundY - 12,
-          r: 95,
-          s: 0.9,
-          bloom: { r: 120, color: "rgba(255,220,160,ALPHA)", a: 0.1 },
-        });
+        const huts = st.village.huts || 0;
+        const maxHomes = Math.min(huts, 12);
+        const totalHomes = 1 + maxHomes;
+        const spacing = W * 0.06;
+        const startX = W * 0.5 - (totalHomes - 1) * spacing * 0.5;
+        const baseY = groundY - 14;
 
-        // Additional hut lights (Phase 3: make the settlement feel alive)
-        // Keep these subtle to avoid washing out the pixel art.
-        if (!isSkyMode && lit) {
-          const huts = st.village.huts || 0;
-          for (let i = 0; i < Math.min(huts, 12); i++) {
-            const hx = W * (0.35 + i * 0.05);
-            const hy = groundY - 12 + (i % 2) * 4;
-            lights.push({
-              x: hx,
-              y: hy,
-              r: 70,
-              s: 0.55,
-              bloom: { r: 95, color: "rgba(255,210,160,ALPHA)", a: 0.07 },
-            });
-          }
+        for (let i = 0; i < totalHomes; i++) {
+          const hx = startX + i * spacing;
+          const hy = baseY + (i % 2) * 3;
+          const isMain = i === 0;
+          lights.push({
+            x: hx,
+            y: hy,
+            r: isMain ? 95 : 70,
+            s: isMain ? 0.9 : 0.55,
+            bloom: {
+              r: isMain ? 120 : 95,
+              color: "rgba(255,220,160,ALPHA)",
+              a: isMain ? 0.1 : 0.07,
+            },
+          });
         }
       }
 
@@ -682,15 +681,17 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         const temples = st.village.temples || 0;
 
         const lit = st.devotion > 0;
-        // Main Hut (Y + 4 to sit on ground)
-        drawHouse(W * 0.26, groundY + 6, 2.4, lit);
+        // Homes / Village cluster (centered)
+        const maxHomes = Math.min(huts, 12);
+        const totalHomes = 1 + maxHomes; // include the initial home
+        const spacing = W * 0.06;
+        const startX = W * 0.5 - (totalHomes - 1) * spacing * 0.5;
+        const baseY = groundY + 2;
 
-        // Central monolith (main focal point)
-        drawMonolith(W * 0.56, groundY + 10, 2.8, lit);
-
-        for (let i = 0; i < Math.min(huts, 12); i++) {
-          const hx = W * (0.35 + i * 0.05);
-          const hy = groundY + 8 + (i % 2) * 4;
+        for (let i = 0; i < totalHomes; i++) {
+          const hx = startX + i * spacing;
+          const hy = baseY + (i % 2) * 3;
+          // keep the initial placeholder home the same size as purchased homes
           drawHouse(hx, hy, 2.0, lit);
         }
 
@@ -740,11 +741,21 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       fxRef.current.forEach((p) => {
         if (p.kind !== "float") return;
         const age = Math.max(0, now - p.t0);
-        ctx.font = '5px "Press Start 2P", sans-serif';
-        ctx.fillStyle = "#fff";
+        ctx.font = '12px "Press Start 2P", sans-serif';
         ctx.textAlign = "center";
-        const floatY = p.y * H - age / 50;
-        ctx.fillText(p.text, Math.floor(p.x * W), Math.floor(floatY));
+        const floatY = p.y * H - age / 70;
+        const fx = Math.floor(p.x * W);
+        const fy = Math.floor(floatY);
+        // readability on dark scanline background
+        ctx.save();
+        ctx.shadowColor = "rgba(0,0,0,0.65)";
+        ctx.shadowBlur = 4;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(0,0,0,0.9)";
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeText(p.text, fx, fy);
+        ctx.fillText(p.text, fx, fy);
+        ctx.restore();
       });
 
       rafRef.current = requestAnimationFrame(loop);
@@ -767,7 +778,7 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       onClickSky();
     } else {
       addMotesTo(x, y, TOTEM_TARGET.x, TOTEM_TARGET.y, "village", 5);
-      addFloat(x, y, "+Omen");
+      addFloat(x, y, "+Ember");
       onClickVillage();
     }
   };

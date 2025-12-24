@@ -45,6 +45,8 @@ function baseState() {
     devotion: 0, // Reverence
     power: 0, // Authority
 
+    embers: 0, // Divine Embers (Phase B early-game)
+
     whispers: 0, // Omens (pre-awakening)
     stardust: 0, // Starlight bucket
 
@@ -82,6 +84,10 @@ function baseState() {
       started: false,
     },
 
+    stats: {
+      passiveEmbers: 0, // accumulated from passive generation
+    },
+
     settings: {
       autosave: true,
       reducedMotion: false,
@@ -112,7 +118,12 @@ function saveState(s) {
 function migrateState(s) {
   const next = JSON.parse(JSON.stringify(s));
 
-  // critical bug fix: if you have followers, you're awakened
+    // Phase B: ensure embers + stats exist
+  if (typeof next.embers !== "number") next.embers = 0;
+  if (!next.stats || typeof next.stats !== "object") next.stats = {};
+  if (typeof next.stats.passiveEmbers !== "number") next.stats.passiveEmbers = 0;
+
+// critical bug fix: if you have followers, you're awakened
   if (next.followers >= 1) next.unlocked.awakened = true;
 
   // unlock convert once temples exist

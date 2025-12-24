@@ -5,12 +5,12 @@ function upgradeCost(base, growth, lvl) {
 const VILLAGE_UPGRADES = [
   {
     id: "huts",
-    name: "Huts",
-    desc: "Shelter stabilizes the settlement. Enables passive follower growth.",
+    name: "Homes",
+    desc: "Shelter the village. Homes gather faint divine remnants as Divine Embers.",
     baseCost: 25,
     growth: 1.17,
-    currency: "devotion",
-    effect: (lvl) => `Growth potential +${(0.07 * (lvl + 1)).toFixed(2)}/s`,
+    currency: "embers",
+    effect: (lvl) => `Divine Embers +${(0.05 * (lvl)).toFixed(2)}/s`,
   },
   {
     id: "farms",
