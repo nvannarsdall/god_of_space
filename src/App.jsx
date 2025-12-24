@@ -778,10 +778,31 @@ export default function App() {
   };
 
   const doReset = () => {
+    const ok = window.confirm("Reset all progress? This cannot be undone.");
+    if (!ok) return;
+
     try {
+      // Clear current + any legacy keys (defensive in case keys changed between versions)
       localStorage.removeItem(LS_KEY);
+      for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (
+          k.startsWith("space_god_incremental_") ||
+          k.startsWith("space_god_")
+        ) {
+          localStorage.removeItem(k);
+        }
+      }
     } catch {}
-    window.location.reload();
+
+    try {
+      sessionStorage.clear();
+    } catch {}
+
+    const fresh = migrateState(baseState());
+    setState(fresh);
+    showToast("Progress reset.");
   };
 
   const replayIntro = () => {
