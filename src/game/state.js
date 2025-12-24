@@ -79,6 +79,7 @@ function baseState() {
       tutorialStep: 0,
       tutorialActive: false,
       introSeen: false,
+      started: false,
     },
 
     settings: {
@@ -158,9 +159,26 @@ function migrateState(s) {
       tutorialStep: 0,
       tutorialActive: false,
       introSeen: false,
+      started: false,
     },
     next.ui || {}
   );
+
+  // If this save already has progress, consider the session "started" to avoid
+  // re-showing the Start Game gate on existing saves (e.g. after migrations).
+  if (next.ui.started === false) {
+    const hasProgress =
+      (next.t || 0) > 0.1 ||
+      (next.followers || 0) > 0 ||
+      (next.devotion || 0) > 0 ||
+      (next.village?.huts || 0) > 0 ||
+      (next.village?.farms || 0) > 0 ||
+      (next.village?.temples || 0) > 0 ||
+      (next.sky?.starsong || 0) > 0 ||
+      Boolean(next.ui.introSeen);
+    if (hasProgress) next.ui.started = true;
+  }
+
   next.meta = Object.assign({ cycles: 0, memory: 0 }, next.meta || {});
 
   next.settings = Object.assign(

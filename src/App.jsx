@@ -533,6 +533,28 @@ function IntroCutscene({ onDone }) {
     </div>
   );
 }
+
+// Dev-only: pass an immutable snapshot to compute() to catch accidental mutations.
+// We clone first so we don't freeze the live React state object.
+function devFreezeState(state) {
+  if (process.env.NODE_ENV === "production") return state;
+  try {
+    const cloned = JSON.parse(JSON.stringify(state));
+    const seen = new WeakSet();
+    const freeze = (obj) => {
+      if (!obj || typeof obj !== "object") return obj;
+      if (seen.has(obj)) return obj;
+      seen.add(obj);
+      Object.freeze(obj);
+      for (const key of Object.keys(obj)) freeze(obj[key]);
+      return obj;
+    };
+    return freeze(cloned);
+  } catch {
+    return state;
+  }
+}
+
 export default function App() {
   const [state, setState] = useState(() => {
     const loaded = loadState();
@@ -547,10 +569,27 @@ export default function App() {
 
   // Only show the intro cutscene on truly fresh saves.
   // (Prevents surprise state wipes when a migrated save lacked introSeen.)
+  const showStart = !state.ui?.started;
+
   const showIntro =
-    !state.ui.introSeen && !state.ui?.tutorialActive && !hasProgress;
-  const computed = useMemo(() => compute(state), [state]);
+    !showStart &&
+    !state.ui.introSeen &&
+    !state.ui?.tutorialActive &&
+    !hasProgress;
+
+  const computed = useMemo(() => compute(devFreezeState(state)), [state]);
   const [toast, setToast] = useState(null);
+
+  // "Start Game" gate (autoplay policy):
+  // Browsers require a user gesture before unmuted audio can play.
+  // We show this once per tab session (sessionStorage) before intro/tutorial.
+  const [started, setStarted] = useState(() => {
+    try {
+      return sessionStorage.getItem("gos_started") === "1";
+    } catch {
+      return false;
+    }
+  });
 
   // Keep a stable reference for autosave so it doesn't reset on every tick.
   const stateRef = useRef(state);
@@ -590,7 +629,7 @@ export default function App() {
   const tab = state.ui.tab;
   const awakened = state.unlocked.awakened;
   const tutorialOn = Boolean(
-    state.ui?.tutorialActive && state.ui?.screen === "tutorial"
+    !showStart && state.ui?.tutorialActive && state.ui?.screen === "tutorial"
   );
   const tutStep = state.ui?.tutorialStep || 0;
   const seekerCost = 20;
@@ -898,6 +937,92 @@ export default function App() {
     tutorialOn && tutorialStepData?.targets
       ? tutorialStepData.targets.map((fn) => fn()).filter(Boolean)
       : null;
+
+  if (!started) {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          display: "grid",
+          placeItems: "center",
+          background:
+            "radial-gradient(1000px 600px at 50% 35%, rgba(110,160,255,0.18), rgba(0,0,0,0.88))",
+          zIndex: 9999,
+          padding: 16,
+        }}
+      >
+        <div
+          style={{
+            width: "min(520px, 92vw)",
+            borderRadius: 16,
+            border: "1px solid rgba(255,255,255,0.16)",
+            background: "rgba(10,14,20,0.72)",
+            boxShadow: "0 24px 80px rgba(0,0,0,0.55)",
+            padding: 18,
+          }}
+        >
+          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>
+            God of Space
+          </div>
+          <div style={{ opacity: 0.9, lineHeight: 1.35, marginBottom: 14 }}>
+            Click <b>Start Game</b> to begin. (Browsers require a click before
+            audio can play.)
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Button
+              onClick={() => {
+                try {
+                  sessionStorage.setItem("gos_started", "1");
+                } catch {}
+                setStarted(true);
+
+                setState((s) => {
+                  const next = {
+                    ...s,
+                    settings: { ...s.settings, musicEnabled: true },
+                  };
+                  try {
+                    applyMusicSettings({
+                      enabled: true,
+                      volume: next.settings.musicVolume,
+                    });
+                  } catch {}
+                  try {
+                    const a = getMusic();
+                    if (a) a.play().catch(() => {});
+                  } catch {}
+                  return next;
+                });
+              }}
+            >
+              Start Game
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                try {
+                  sessionStorage.setItem("gos_started", "1");
+                } catch {}
+                setStarted(true);
+                // Keep music disabled.
+                setState((s) => s);
+                try {
+                  applyMusicSettings({
+                    enabled: false,
+                    volume: state.settings.musicVolume,
+                  });
+                } catch {}
+              }}
+            >
+              Start (Muted)
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (showIntro) {
     return (
       <IntroCutscene
