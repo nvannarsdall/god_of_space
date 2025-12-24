@@ -15,32 +15,9 @@ import {
 } from "./game/state";
 import TutorialOverlay from "./tutorial/TutorialOverlay";
 import { buildTutorialSteps } from "./tutorial/tutorialData";
+import { applyMusicSettings, getMusic } from "./systems/audio";
 
-/* ============================================================
-   INTRO MUSIC (AUTOPLAY-SAFE BOOTSTRAP)
-   - Starts immediately (muted) so it accompanies the cutscene.
-   - Unmutes on first user interaction (browser policy).
-   ============================================================ */
-if (typeof window !== "undefined" && !window.__gosIntroMusic) {
-  const a = new Audio("/assets/audio/god_of_space_theme.wav");
-  a.loop = true;
-  a.volume = 0.7;
-  a.muted = true;
-  // Start muted playback immediately; browsers allow muted autoplay.
-  a.currentTime = 0;
-  a.play().catch(() => {});
-  const unlock = () => {
-    a.muted = false;
-    a.play().catch(() => {});
-    window.removeEventListener("pointerdown", unlock);
-    window.removeEventListener("keydown", unlock);
-    window.removeEventListener("touchstart", unlock);
-  };
-  window.addEventListener("pointerdown", unlock, { once: true });
-  window.addEventListener("keydown", unlock, { once: true });
-  window.addEventListener("touchstart", unlock, { once: true });
-  window.__gosIntroMusic = a;
-}
+// Music is managed by a single authority in src/systems/audio.js
 
 /* --- INTRO CUTSCENE --- */
 
@@ -78,9 +55,10 @@ function IntroCutscene({ onDone }) {
 
     const ctx = canvas.getContext("2d");
 
-    // Ensure intro music is running during the cutscene
+    // Ensure music is running during the cutscene.
+    // (Autoplay-safe: starts muted, unmutes on first user gesture.)
     try {
-      const a = window.__gosIntroMusic;
+      const a = getMusic();
       if (a) a.play().catch(() => {});
     } catch {}
 
@@ -562,49 +540,45 @@ export default function App() {
     return migrateState(merged);
   });
 
-  const showIntro = !state.ui.introSeen && !state.ui?.tutorialActive;
+  const hasProgress =
+    (state.whispers || 0) > 0 ||
+    (state.followers || 0) > 0 ||
+    (state.devotion || 0) > 0;
+
+  // Only show the intro cutscene on truly fresh saves.
+  // (Prevents surprise state wipes when a migrated save lacked introSeen.)
+  const showIntro =
+    !state.ui.introSeen && !state.ui?.tutorialActive && !hasProgress;
   const computed = useMemo(() => compute(state), [state]);
   const [toast, setToast] = useState(null);
 
-  // Audio & Refs
-  const audioRef = useRef(null);
-
-  // ---- Intro music (muted autoplay, unmute on interaction) ----
+  // Keep a stable reference for autosave so it doesn't reset on every tick.
+  const stateRef = useRef(state);
   useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
+    stateRef.current = state;
+  }, [state]);
 
-    el.src = "/audio/god_of_space_theme.mp3";
-    el.loop = true;
-    el.volume = 0.7;
-    el.muted = true;
+  // If a migrated/loaded save already has progress, never force the intro again.
+  useEffect(() => {
+    if (hasProgress && !state.ui?.introSeen) {
+      setState((s) => migrateState({ ...s, ui: { ...s.ui, introSeen: true } }));
+    }
+  }, [hasProgress, state.ui?.introSeen]);
 
-    const play = () => el.play().catch(() => {});
-    play();
-
-    const unlock = () => {
-      el.muted = false;
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
-    };
-
-    window.addEventListener("pointerdown", unlock, { once: true });
-    window.addEventListener("keydown", unlock, { once: true });
-
-    return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
-    };
+  // Music (single authority) — shared by intro cutscene + gameplay.
+  useEffect(() => {
+    // Create the singleton early so the cutscene can rely on it.
+    getMusic();
   }, []);
-  const urlsRef = useRef([]);
-  const [playlist, setPlaylist] = useState([]);
-  const [track, setTrack] = useState(0);
 
   const worldRef = useRef(null);
   const seekerBtnRef = useRef(null);
   const statusRef = useRef(null);
   const upgradesRef = useRef(null);
   const skyTabRef = useRef(null);
+  const actionsPanelRef = useRef(null);
+  const hutsBuyRef = useRef(null);
+  const templesBuyRef = useRef(null);
 
   const getRectFromRef = (ref) => {
     const el = ref?.current;
@@ -632,7 +606,10 @@ export default function App() {
         status: statusRef,
         seekerButton: seekerBtnRef,
         upgrades: upgradesRef,
-        skyTab: skyTabRef,
+        actionsPanel: actionsPanelRef,
+        upgradeHuts: hutsBuyRef,
+        upgradeTemples: templesBuyRef,
+        tabSky: skyTabRef,
       },
     });
   }, [state, tutorialOn, seekerCost]);
@@ -644,29 +621,12 @@ export default function App() {
   const tutorialIndex = tutorialStepData
     ? clamp(tutStep, 0, tutorialTotal - 1)
     : 0;
-  const tutorialAllows = tutorialStepData?.allow || {};
-  const isVillageListStep = tutorialOn
-    ? Boolean(tutorialAllows.villageUpgrades)
-    : true;
-  const isSkyTabStep = tutorialOn ? Boolean(tutorialAllows.skyTab) : true;
-  const isSkyUpgradeStep = tutorialOn
-    ? Boolean(tutorialAllows.skyUpgrades)
-    : true;
-  const isSeekerStep = tutorialOn ? Boolean(tutorialAllows.seeker) : true;
+  // Phase A: tutorial is informative (never blocks input), so we don't
+  // use allow-keys for click gating here.
   const inMenu = false;
   const leftHudPE = "auto";
   const rightPanelPE = "auto";
 
-  // Unlock the Sky tab mid-tutorial (slow reveal)
-  useEffect(() => {
-    if (!tutorialOn) return;
-    const step = state.ui?.tutorialStep || 0;
-    if (step >= 8 && !state.unlocked.sky) {
-      setState((s) =>
-        migrateState({ ...s, unlocked: { ...s.unlocked, sky: true } })
-      );
-    }
-  }, [tutorialOn, state.ui?.tutorialStep, state.unlocked.sky]);
   const veilPct = Math.round(computed.veil * 100);
 
   const showToast = (text) => {
@@ -687,9 +647,13 @@ export default function App() {
 
   useEffect(() => {
     if (!state.settings.autosave) return;
-    const id = setInterval(() => saveState(state), 5000);
+    const id = setInterval(() => {
+      try {
+        saveState(stateRef.current);
+      } catch {}
+    }, 5000);
     return () => clearInterval(id);
-  }, [state]);
+  }, [state.settings.autosave]);
 
   useEffect(() => {
     const step = state.settings.reducedMotion ? 1250 : 1000;
@@ -711,124 +675,17 @@ export default function App() {
     return () => clearInterval(id);
   }, [state.settings.reducedMotion]);
 
+  // Keep music consistent through intro → tutorial → gameplay.
   useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    el.volume = clamp(state.settings.musicVolume ?? 0.65, 0, 1);
-    el.muted = !state.settings.musicEnabled;
+    applyMusicSettings({
+      enabled: Boolean(state.settings.musicEnabled),
+      volume: state.settings.musicVolume,
+    });
   }, [state.settings.musicEnabled, state.settings.musicVolume]);
-
-  // Start/continue soundtrack in-game (and stop any intro bootstrap audio)
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-
-    // Stop bootstrap intro audio if it exists (prevents double playback)
-    try {
-      const intro = window.__gosIntroMusic;
-      if (intro) {
-        // carry time if possible
-        const t = intro.currentTime || 0;
-        // Carry time for continuity.
-        el.currentTime = Math.max(0, Math.min(t, 9999));
-        // Only stop bootstrap if in-game audio is already running.
-        if (!el.paused) {
-          intro.pause();
-          window.__gosIntroMusic = null;
-        }
-      }
-    } catch {}
-
-    // Ensure a valid source is set.
-    if (!el.src || !String(el.src).includes("god_of_space_theme")) {
-      el.src = "/assets/audio/god_of_space_theme.wav";
-      try {
-        el.load();
-      } catch {}
-    }
-
-    if (state.settings.musicEnabled) {
-      const p = el.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
-    }
-  }, [state.settings.musicEnabled]);
-
-  // Autoplay-safe audio: keep music playing muted, then unmute on first user gesture.
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-
-    // Start muted (allowed to autoplay), then unmute on interaction.
-    if (!window.__gosAudioUnlocked) {
-      el.muted = true;
-      const p = el.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
-    }
-
-    const unlock = () => {
-      if (window.__gosAudioUnlocked) return;
-      window.__gosAudioUnlocked = true;
-      try {
-        el.muted = false;
-        el.volume = clamp(state.settings.musicVolume ?? 0.7, 0, 1);
-        const p2 = el.play();
-        if (p2 && typeof p2.catch === "function") p2.catch(() => {});
-      } catch {}
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
-      window.removeEventListener("touchstart", unlock);
-    };
-
-    window.addEventListener("pointerdown", unlock, { passive: true });
-    window.addEventListener("touchstart", unlock, { passive: true });
-    window.addEventListener("keydown", unlock);
-
-    return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
-      window.removeEventListener("touchstart", unlock);
-    };
-  }, [state.settings.musicVolume]);
-
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    if (playlist.length <= 0) {
-      el.pause();
-      el.removeAttribute("src");
-      try {
-        el.load();
-      } catch {}
-      return;
-    }
-    const idx = clamp(track, 0, playlist.length - 1);
-    if (el.src !== playlist[idx].url) {
-      el.src = playlist[idx].url;
-      try {
-        el.load();
-      } catch {}
-    }
-    if (state.settings.musicEnabled) {
-      const p = el.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
-    }
-  }, [playlist, track, state.settings.musicEnabled]);
-
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    const onEnded = () => {
-      if (!playlist.length) return;
-      setTrack((i) => (i + 1) % playlist.length);
-    };
-    el.addEventListener("ended", onEnded);
-    return () => el.removeEventListener("ended", onEnded);
-  }, [playlist.length]);
 
   const clickVillage = () => {
     setState((s0) => {
       const s = migrateState(s0);
-      if (tutorialOn && !tutorialAllows.world) return s;
       const c = compute(s);
       const gain = Math.max(0.25, c.omenClickGain || 1);
       return { ...s, whispers: s.whispers + gain };
@@ -838,7 +695,6 @@ export default function App() {
   const clickSky = () => {
     setState((s0) => {
       const s = migrateState(s0);
-      if (tutorialOn && !tutorialAllows.world) return s;
       const c = compute(s);
       const base = 0.2 * c.telescopeBonus * c.starlightBonus;
       const stardust = s.stardust + base;
@@ -883,17 +739,9 @@ export default function App() {
   const buy = (u, which) => {
     setState((s0) => {
       const s = migrateState(s0);
-      const tut = Boolean(s.ui?.tutorialActive && s.ui?.screen === "tutorial");
-      const step = s.ui?.tutorialStep || 0;
-      if (tut && which === "village") {
-        if (step < 2) return s;
-        if (step === 2 && u.id !== "huts") return s;
-        if (step === 3 && !["huts", "temples"].includes(u.id)) return s;
-      }
-      if (tut && which === "sky") {
-        if (step < 4) return s;
-        if (step === 4 && u.id !== "starsong") return s;
-      }
+
+      // Phase A stability: never gate purchases behind tutorial step indices.
+      // The tutorial must be informative only (never blocking).
       const lvl = which === "village" ? s.village[u.id] : s.sky[u.id];
       const cost = upgradeCost(u.baseCost, u.growth, lvl);
       if (u.currency === "devotion") {
@@ -996,9 +844,6 @@ export default function App() {
       tab: "village",
       introSeen: true,
     };
-    try {
-      localStorage.removeItem(LS_KEY);
-    } catch {}
     setState(migrateState(next));
     showToast("The dusk begins.");
   };
@@ -1017,10 +862,6 @@ export default function App() {
     );
   };
 
-  const hasProgress =
-    (state.whispers || 0) > 0 ||
-    (state.followers || 0) > 0 ||
-    (state.devotion || 0) > 0;
   const portentRemaining = Math.max(
     0,
     (state.buffs?.portentUntil || 0) - state.t
@@ -1055,9 +896,6 @@ export default function App() {
               introSeen: true,
               settingsOpen: false,
             };
-            try {
-              localStorage.removeItem(LS_KEY);
-            } catch {}
             return migrateState(next);
           });
         }}
@@ -1067,7 +905,6 @@ export default function App() {
 
   return (
     <div className="appRoot">
-      <audio ref={audioRef} />
       <div ref={worldRef} style={{ position: "fixed", inset: 0 }}>
         <WorldCanvas
           mode={tab}
@@ -1178,10 +1015,7 @@ export default function App() {
                     }
                     style={{ marginTop: 8 }}
                   >
-                    <Button
-                      onClick={callSeeker}
-                      disabled={!isSeekerStep || !canCallSeeker}
-                    >
+                    <Button onClick={callSeeker} disabled={!canCallSeeker}>
                       Call a Seeker ({seekerCost})
                     </Button>
                   </div>
@@ -1263,116 +1097,114 @@ export default function App() {
             )
           }
         >
-          <div className="tabs">
-            <button
-              className={`tab ${tab === "village" ? "tabActive" : ""} ${
-                tutorialOn && !isVillageListStep ? "tabDisabled" : ""
-              }`}
-              onClick={() =>
-                !tutorialOn || isVillageListStep ? setTab("village") : null
-              }
-            >
-              Village
-            </button>
-            <button
-              ref={skyTabRef}
-              className={`tab ${tab === "sky" ? "tabActive" : ""} ${
-                !isSkyTabStep || !state.unlocked.sky ? "tabDisabled" : ""
-              } ${tutorialStepData?.id === "sky" ? "tutTarget" : ""}`}
-              onClick={() =>
-                isSkyTabStep && state.unlocked.sky && setTab("sky")
-              }
-            >
-              Sky
-            </button>
-            <button
-              className={`tab ${tab === "codex" ? "tabActive" : ""} ${
-                tutorialOn ? "tabDisabled" : ""
-              }`}
-              onClick={() => !tutorialOn && setTab("codex")}
-            >
-              Codex
-            </button>
+          <div ref={actionsPanelRef}>
+            <div className="tabs">
+              <button
+                className={`tab ${tab === "village" ? "tabActive" : ""}`}
+                onClick={() => setTab("village")}
+              >
+                Village
+              </button>
+              <button
+                ref={skyTabRef}
+                className={`tab ${tab === "sky" ? "tabActive" : ""} ${
+                  !state.unlocked.sky ? "tabDisabled" : ""
+                } ${tutorialStepData?.id === "sky" ? "tutTarget" : ""}`}
+                onClick={() => state.unlocked.sky && setTab("sky")}
+              >
+                Sky
+              </button>
+              <button
+                className={`tab ${tab === "codex" ? "tabActive" : ""}`}
+                onClick={() => setTab("codex")}
+              >
+                Codex
+              </button>
+            </div>
+            {tab === "village" && (
+              <div
+                className={`list ${
+                  tutorialStepData?.id === "huts" ||
+                  tutorialStepData?.id === "temple"
+                    ? "tutTarget"
+                    : ""
+                }`}
+                ref={upgradesRef}
+              >
+                {VILLAGE_UPGRADES.map((u) => {
+                  const lvl = state.village[u.id] || 0;
+                  const cost = upgradeCost(u.baseCost, u.growth, lvl);
+                  const can = awakened && state.devotion >= cost;
+                  return (
+                    <div key={u.id} className="item">
+                      <div className="itemTop">
+                        <div className="itemName">{u.name}</div>
+                        <Pill>Lvl {lvl}</Pill>
+                      </div>
+                      <div className="itemDesc">{u.desc}</div>
+                      <div className="itemEffect">{u.effect(lvl)}</div>
+                      <div className="rowBetween" style={{ marginTop: 10 }}>
+                        <div className="smallText">
+                          Cost: <b>{fmt(cost)}</b> Reverence
+                        </div>
+                        <div
+                          ref={
+                            u.id === "huts"
+                              ? hutsBuyRef
+                              : u.id === "temples"
+                              ? templesBuyRef
+                              : null
+                          }
+                        >
+                          <Button
+                            disabled={!can}
+                            onClick={() => buy(u, "village")}
+                          >
+                            Buy
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {tab === "sky" && (
+              <div
+                className={`list ${
+                  tutorialStepData?.id === "sky" ? "tutTarget" : ""
+                }`}
+              >
+                {SKY_UPGRADES.map((u) => {
+                  const lvl = state.sky[u.id] || 0;
+                  const cost = upgradeCost(u.baseCost, u.growth, lvl);
+                  const can = state.stardust >= cost;
+                  return (
+                    <div key={u.id} className="item">
+                      <div className="itemTop">
+                        <div className="itemName">{u.name}</div>
+                        <Pill>Lvl {lvl}</Pill>
+                      </div>
+                      <div className="itemDesc">{u.desc}</div>
+                      <div className="itemEffect">{u.effect(lvl)}</div>
+                      <div className="rowBetween" style={{ marginTop: 10 }}>
+                        <div className="smallText">
+                          Cost: <b>{fmt(cost)}</b> Starlight
+                        </div>
+                        <Button
+                          disabled={!can}
+                          onClick={() => buy(u, "sky")}
+                          variant="primary"
+                        >
+                          Buy
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          {tab === "village" && (
-            <div
-              className={`list ${
-                tutorialStepData?.id === "huts" ||
-                tutorialStepData?.id === "temple"
-                  ? "tutTarget"
-                  : ""
-              }`}
-              ref={upgradesRef}
-            >
-              {VILLAGE_UPGRADES.filter((u) => {
-                if (!tutorialOn) return true;
-                if (tutStep === 2) return u.id === "huts";
-                if (tutStep === 3) return u.id === "huts" || u.id === "temples";
-                return true;
-              }).map((u) => {
-                const lvl = state.village[u.id] || 0;
-                const cost = upgradeCost(u.baseCost, u.growth, lvl);
-                const can = awakened && state.devotion >= cost;
-                return (
-                  <div key={u.id} className="item">
-                    <div className="itemTop">
-                      <div className="itemName">{u.name}</div>
-                      <Pill>Lvl {lvl}</Pill>
-                    </div>
-                    <div className="itemDesc">{u.desc}</div>
-                    <div className="itemEffect">{u.effect(lvl)}</div>
-                    <div className="rowBetween" style={{ marginTop: 10 }}>
-                      <div className="smallText">
-                        Cost: <b>{fmt(cost)}</b> Reverence
-                      </div>
-                      <Button disabled={!can} onClick={() => buy(u, "village")}>
-                        Buy
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {tab === "sky" && (
-            <div
-              className={`list ${
-                tutorialStepData?.id === "sky" ? "tutTarget" : ""
-              }`}
-            >
-              {SKY_UPGRADES.filter((u) => {
-                if (!tutorialOn) return true;
-                if (tutStep === 4) return u.id === "starsong";
-                return true;
-              }).map((u) => {
-                const lvl = state.sky[u.id] || 0;
-                const cost = upgradeCost(u.baseCost, u.growth, lvl);
-                const can = state.stardust >= cost && isSkyUpgradeStep;
-                return (
-                  <div key={u.id} className="item">
-                    <div className="itemTop">
-                      <div className="itemName">{u.name}</div>
-                      <Pill>Lvl {lvl}</Pill>
-                    </div>
-                    <div className="itemDesc">{u.desc}</div>
-                    <div className="itemEffect">{u.effect(lvl)}</div>
-                    <div className="rowBetween" style={{ marginTop: 10 }}>
-                      <div className="smallText">
-                        Cost: <b>{fmt(cost)}</b> Starlight
-                      </div>
-                      <Button
-                        disabled={!can}
-                        onClick={() => buy(u, "sky")}
-                        variant="primary"
-                      >
-                        Buy
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </Card>
       </div>
 
@@ -1489,46 +1321,6 @@ export default function App() {
         />
       )}
       {toast && <div className="toast">{toast}</div>}
-      <TrackBinder
-        playlist={playlist}
-        track={track}
-        setTrack={setTrack}
-        audioRef={audioRef}
-        enabled={state.settings.musicEnabled}
-        volume={state.settings.musicVolume}
-      />
     </div>
   );
-}
-
-function TrackBinder({ playlist, track, setTrack, audioRef, enabled, volume }) {
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el || !playlist.length) return;
-    const idx = clamp(track, 0, playlist.length - 1);
-    if (el.src !== playlist[idx].url) {
-      el.src = playlist[idx].url;
-      try {
-        el.load();
-      } catch {}
-    }
-    el.volume = clamp(volume ?? 0.65, 0, 1);
-    el.muted = !enabled;
-    if (enabled) {
-      const p = el.play();
-      if (p && typeof p.catch === "function") p.catch(() => {});
-    }
-  }, [playlist, track, enabled, volume, audioRef]);
-
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    const onEnded = () => {
-      if (!playlist.length) return;
-      setTrack((i) => (i + 1) % playlist.length);
-    };
-    el.addEventListener("ended", onEnded);
-    return () => el.removeEventListener("ended", onEnded);
-  }, [playlist.length, setTrack, audioRef]);
-  return null;
 }

@@ -40,25 +40,60 @@ function TutorialOverlay({
     h: rr.height + pad * 2,
   }));
 
-  // Determine Safe Position (Top vs Bottom dock)
-  // Logic: If the MAIN target (first one) is in the top 60% of screen, dock text at bottom.
-  // Otherwise dock text at top. This prevents the text from covering the target.
+  // Determine a safe panel docking position that avoids covering the main target.
+  // This prevents the tutorial panel from *visually* blocking upgrades/buttons even if clicks pass through.
   const mainTarget = rs[0];
-  const isTargetHigh = mainTarget
-    ? mainTarget.y + mainTarget.h / 2 < viewport.h * 0.6
-    : true;
+  const margin = 18;
 
-  const panelStyle = {
+  const spaces = mainTarget
+    ? {
+        top: mainTarget.y,
+        bottom: viewport.h - (mainTarget.y + mainTarget.h),
+        left: mainTarget.x,
+        right: viewport.w - (mainTarget.x + mainTarget.w),
+      }
+    : { top: viewport.h, bottom: viewport.h, left: viewport.w, right: viewport.w };
+
+  const best = Object.entries(spaces).sort((a, b) => b[1] - a[1])[0]?.[0] ||
+    "bottom";
+
+  const baseStyle = {
     position: "fixed",
-    left: "50%",
-    transform: "translateX(-50%)",
-    width: "min(760px, 92vw)",
-    zIndex: 100, // Must be above the SVG mask
-    transition: "top 0.3s ease, bottom 0.3s ease",
-    // Docking Logic:
-    top: isTargetHigh ? "auto" : "80px",
-    bottom: isTargetHigh ? "40px" : "auto",
+    width: "min(560px, 92vw)",
+    zIndex: 100,
+    pointerEvents: "auto",
   };
+
+  let panelStyle;
+  if (best === "left") {
+    panelStyle = {
+      ...baseStyle,
+      left: margin,
+      top: "50%",
+      transform: "translateY(-50%)",
+    };
+  } else if (best === "right") {
+    panelStyle = {
+      ...baseStyle,
+      right: margin,
+      top: "50%",
+      transform: "translateY(-50%)",
+    };
+  } else if (best === "top") {
+    panelStyle = {
+      ...baseStyle,
+      top: margin,
+      left: "50%",
+      transform: "translateX(-50%)",
+    };
+  } else {
+    panelStyle = {
+      ...baseStyle,
+      bottom: margin,
+      left: "50%",
+      transform: "translateX(-50%)",
+    };
+  }
 
   return (
     <div
@@ -118,10 +153,7 @@ function TutorialOverlay({
       </svg>
 
       {/* 2. TEXT PANEL */}
-      <div
-        className="tutPanel"
-        style={{ ...panelStyle, pointerEvents: "auto" }}
-      >
+      <div className="tutPanel" style={panelStyle}>
         <div
           className="tutHeader"
           style={{

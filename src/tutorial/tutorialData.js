@@ -42,7 +42,7 @@ This awakens you — Followers begin to gather, and Reverence can grow.`,
       targets: [() => getRect(refs.seekerButton), () => getRect(refs.status)],
       target: () => getRect(refs.seekerButton),
       done: () => Boolean(state?.unlocked?.awakened),
-      allow: { seeker: true },
+      allow: { seekerButton: true },
     },
 
     {
@@ -56,7 +56,7 @@ Objective: have at least 1 Follower.`,
       targets: [() => getRect(refs.status), () => getRect(refs.world)],
       target: () => getRect(refs.status),
       done: () => (state.followers || 0) >= 1,
-      allow: { world: true, villageTab: true },
+      allow: { world: true, tabVillage: true },
     },
 
     {
@@ -65,10 +65,10 @@ Objective: have at least 1 Follower.`,
       body: `Reverence rises as Followers devote attention and ritual.
 
 But faith fades if neglected — you must stabilize it with structures.`,
-      targets: [() => getRect(refs.status), () => getRect(refs.actions)],
+      targets: [() => getRect(refs.status), () => getRect(refs.actionsPanel)],
       target: () => getRect(refs.status),
       done: () => (state.devotion || 0) >= 10,
-      allow: { world: true, villageTab: true },
+      allow: { world: true, tabVillage: true },
     },
 
     {
@@ -77,10 +77,10 @@ But faith fades if neglected — you must stabilize it with structures.`,
       body: `Reverence is unstable under the Veil.
 
 Temples, Shrines, and Festivals help hold belief in place.`,
-      targets: [() => getRect(refs.actions), () => getRect(refs.status)],
-      target: () => getRect(refs.actions),
+      targets: [() => getRect(refs.actionsPanel), () => getRect(refs.status)],
+      target: () => getRect(refs.actionsPanel),
       done: () => true,
-      allow: { villageTab: true },
+      allow: { tabVillage: true },
     },
 
     {
@@ -89,10 +89,10 @@ Temples, Shrines, and Festivals help hold belief in place.`,
       body: `Huts stabilize the settlement and increase growth potential.
 
 Buy a Hut to start passive follower growth.`,
-      targets: [() => getRect(refs.actions), () => getRect(refs.upgradeHuts)],
+      targets: [() => getRect(refs.actionsPanel), () => getRect(refs.upgradeHuts)],
       target: () => getRect(refs.upgradeHuts),
       done: () => (state.village?.huts || 0) >= 1,
-      allow: { villageTab: true },
+      allow: { tabVillage: true, villageUpgrades: true },
     },
 
     {
@@ -102,12 +102,12 @@ Buy a Hut to start passive follower growth.`,
 
 Save up and buy your first Temple.`,
       targets: [
-        () => getRect(refs.actions),
+        () => getRect(refs.actionsPanel),
         () => getRect(refs.upgradeTemples),
       ],
       target: () => getRect(refs.upgradeTemples),
       done: () => (state.village?.temples || 0) >= 1,
-      allow: { villageTab: true },
+      allow: { tabVillage: true, villageUpgrades: true },
     },
 
     {
@@ -116,10 +116,10 @@ Save up and buy your first Temple.`,
       body: `The sky is not decoration — it is your shattered memory.
 
 Open the Sky to begin restoring Constellations (your true skill tree).`,
-      targets: [() => getRect(refs.tabSky), () => getRect(refs.actions)],
+      targets: [() => getRect(refs.tabSky), () => getRect(refs.actionsPanel)],
       target: () => getRect(refs.tabSky),
       done: () => Boolean(state?.unlocked?.sky),
-      allow: { skyTab: true },
+      allow: { tabSky: true },
     },
   ];
 

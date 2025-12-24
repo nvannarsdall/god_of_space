@@ -149,11 +149,14 @@ function migrateState(s) {
   );
   next.ui = Object.assign(
     {
-      tutorialHidden: false,
+      // Keep tutorial non-invasive by default.
+      // (Some prior versions accidentally defaulted tutorialActive=true,
+      // which could soft-lock first-load or suppress the intro.)
+      tutorialHidden: true,
       tab: "village",
       screen: "menu",
       tutorialStep: 0,
-      tutorialActive: true,
+      tutorialActive: false,
       introSeen: false,
     },
     next.ui || {}
