@@ -580,7 +580,10 @@ export default function App() {
     !hasProgress;
 
   const computed = useMemo(() => compute(devFreezeState(state)), [state]);
-  const objective = useMemo(() => getObjective(state, computed), [state, computed]);
+  const objective = useMemo(
+    () => getObjective(state, computed),
+    [state, computed]
+  );
   const [toast, setToast] = useState(null);
 
   // "Start Game" gate (autoplay policy):
@@ -631,7 +634,8 @@ export default function App() {
 
   const tab = state.ui.tab;
   const awakened = state.unlocked.awakened;
-  const faith = (typeof state.faith === "number" ? state.faith : (state.devotion || 0));
+  const faith =
+    typeof state.faith === "number" ? state.faith : state.devotion || 0;
   const hasFaithLayer = faith > 0 || state.unlocked?.faith;
   const tutorialOn = Boolean(
     !showStart && state.ui?.tutorialActive && state.ui?.screen === "tutorial"
@@ -673,6 +677,24 @@ export default function App() {
 
   const veilPct = Math.round(computed.veil * 100);
 
+  const unlockHints = {
+    faith: "Unlock Faith by building 3 Homes or reaching 50 Divine Embers.",
+    starlight: "Unlock Starlight by raising your first Temple.",
+    sky: "Unlock the Sky by raising your first Temple.",
+    constellations: "Unlock Constellations after gathering 20 Starlight.",
+  };
+
+  const isCurrencyUnlocked = (currency) => {
+    if (currency === "embers") return true;
+    if (currency === "faith") return Boolean(state.unlocked?.faith);
+    if (currency === "stardust") return Boolean(state.unlocked?.starlight);
+    return true;
+  };
+
+  const skyTabUnlocked = Boolean(
+    state.unlocked?.sky && state.unlocked?.starlight
+  );
+
   const showToast = (text) => {
     setToast(text);
     setTimeout(() => setToast(null), 1400);
@@ -710,8 +732,16 @@ export default function App() {
           ...s,
           t: s.t + dt,
           followers: Math.min(c.cap, s.followers + c.followerRate * dt),
-          devotion: Math.max(0, (typeof s.devotion === "number" ? s.devotion : (s.faith || 0)) + (c.devotionRate || 0) * dt),
-          faith: Math.max(0, (typeof s.faith === "number" ? s.faith : (s.devotion || 0)) + (c.devotionRate || 0) * dt),
+          devotion: Math.max(
+            0,
+            (typeof s.devotion === "number" ? s.devotion : s.faith || 0) +
+              (c.devotionRate || 0) * dt
+          ),
+          faith: Math.max(
+            0,
+            (typeof s.faith === "number" ? s.faith : s.devotion || 0) +
+              (c.devotionRate || 0) * dt
+          ),
           whispers: Math.max(0, s.whispers + (c.omenRate || 0) * dt),
           embers: Math.max(0, (s.embers || 0) + (c.emberRate || 0) * dt),
           stats: {
@@ -742,8 +772,9 @@ export default function App() {
     setState((s0) => {
       const s = migrateState(s0);
       const c = compute(s);
-      const faith = (typeof state.faith === "number" ? state.faith : (state.devotion || 0));
-  const hasFaithLayer = faith > 0 || state.unlocked?.faith;
+      const faith =
+        typeof state.faith === "number" ? state.faith : state.devotion || 0;
+      const hasFaithLayer = faith > 0 || state.unlocked?.faith;
       const emberGain = Math.max(1, c.emberClickGain || 1);
       return { ...s, embers: (s.embers || 0) + emberGain };
     });
@@ -816,7 +847,10 @@ export default function App() {
           ...s,
           faith: (s.faith || 0) - cost,
           // keep legacy key in sync for older UI/logic that still references devotion
-          devotion: Math.max(0, (typeof s.devotion === "number" ? s.devotion : (s.faith || 0)) - cost),
+          devotion: Math.max(
+            0,
+            (typeof s.devotion === "number" ? s.devotion : s.faith || 0) - cost
+          ),
           village: { ...s.village, [u.id]: lvl + 1 },
         });
       }
@@ -827,7 +861,10 @@ export default function App() {
         return migrateState({
           ...s,
           devotion: s.devotion - cost,
-          faith: Math.max(0, (typeof s.faith === "number" ? s.faith : s.devotion) - cost),
+          faith: Math.max(
+            0,
+            (typeof s.faith === "number" ? s.faith : s.devotion) - cost
+          ),
           village: { ...s.village, [u.id]: lvl + 1 },
         });
       }
@@ -845,10 +882,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (state.ui.tab === "sky" && !state.unlocked.sky) {
+    if (state.ui.tab === "sky" && !skyTabUnlocked) {
       setTab("village");
     }
-  }, [state.ui.tab, state.unlocked.sky]);
+  }, [state.ui.tab, skyTabUnlocked]);
 
   const doSave = () => {
     saveState(state);
@@ -889,7 +926,6 @@ export default function App() {
       ui: { ...s.ui, introSeen: false, screen: "menu" },
     }));
   };
-
 
   const channelPower = () => {
     setState((s0) => {
@@ -1189,34 +1225,9 @@ export default function App() {
                 <div className="statSub">Lower is better</div>
               </div>
             </div>
-            <div className="statBox">
-              <div className="rowBetween">
-                <div className="statLabel">
-                  <span className="ico" style={{ display: "inline-block", width: 14 }} />
-                  Divine Embers
-                </div>
-                <div className="statValueSmall">{fmt(state.embers)}</div>
-              </div>
-              <div className="statSub">
-                The first spark of your returning power. Earned by Channeling and sustained by Homes.
-              </div>
-              <div className="statSub">
-                Passive: +{fmt(computed.emberRate)}/s
-              </div>
-              <div style={{ marginTop: 8 }}>
-                <Button onClick={channelPower}>Channel Power (+1 Ember)</Button>
-              </div>
-
-              {/* Later-layer actions (kept, but hidden during Phase B) */}
-              {((state.devotion || 0) > 0 || state.unlocked?.devotion) && (
-                <>
-                  <div style={{ height: 8 }} />
-                  <Button onClick={callSeeker} disabled={!canCallSeeker}>
-                    Call a Seeker ({seekerCost})
-                  </Button>
-                </>
-              )}
-            </div><div className="statBox">
+            <div
+              className={`statBox ${state.unlocked.faith ? "" : "lockedBox"}`}
+            >
               <div className="rowBetween">
                 <div className="statLabel">
                   <img
@@ -1224,16 +1235,42 @@ export default function App() {
                     src="/assets/pixel/icon_reverence.png"
                     alt=""
                   />{" "}
-                  Faith
+                  {state.unlocked.faith ? "Faith" : "Faith (???)"}
                 </div>
-                <div className="statValueSmall">{fmt(state.faith || state.devotion)}</div>
+                <div className="statValueSmall">
+                  {state.unlocked.faith
+                    ? fmt(state.faith || state.devotion)
+                    : "—"}
+                </div>
               </div>
               <div className="statSub">
-                Rate: {fmt(computed.faithRate ?? computed.devotionRate)}/s{" "}
-                {state.unlocked.faith ? "" : "(locked)"}
+                {state.unlocked.faith ? (
+                  <>
+                    <div>
+                      <b>Produces:</b> Homes (trickle), Farms (convert Ember
+                      flow)
+                    </div>
+                    <div>
+                      <b>Spends:</b> Farms, Temples, village rituals
+                    </div>
+                    <div>
+                      <b>Why:</b> Belief amplifies your power and unlocks the
+                      sky.
+                    </div>
+                    <div style={{ marginTop: 4 }}>
+                      Rate: {fmt(computed.faithRate ?? computed.devotionRate)}/s
+                    </div>
+                  </>
+                ) : (
+                  <>{unlockHints.faith}</>
+                )}
               </div>
             </div>
-            <div className="statBox">
+            <div
+              className={`statBox ${
+                state.unlocked.starlight ? "" : "lockedBox"
+              }`}
+            >
               <div className="rowBetween">
                 <div className="statLabel">
                   <img
@@ -1241,12 +1278,28 @@ export default function App() {
                     src="/assets/pixel/icon_starlight.png"
                     alt=""
                   />{" "}
-                  Starlight
+                  {state.unlocked.starlight ? "Starlight" : "Starlight (???)"}
                 </div>
-                <div className="statValueSmall">{fmt(state.stardust)}</div>
+                <div className="statValueSmall">
+                  {state.unlocked.starlight ? fmt(state.stardust) : "—"}
+                </div>
               </div>
               <div className="statSub" style={{ marginTop: 6 }}>
-                Earned by clicking the sky.
+                {state.unlocked.starlight ? (
+                  <>
+                    <div>
+                      <b>Produces:</b> Clicking the sky
+                    </div>
+                    <div>
+                      <b>Spends:</b> Sky upgrades, Constellations
+                    </div>
+                    <div>
+                      <b>Why:</b> Rebuild the night and awaken constellations.
+                    </div>
+                  </>
+                ) : (
+                  <>{unlockHints.starlight}</>
+                )}
               </div>
             </div>
           </Card>
@@ -1283,11 +1336,17 @@ export default function App() {
               <button
                 ref={skyTabRef}
                 className={`tab ${tab === "sky" ? "tabActive" : ""} ${
-                  !state.unlocked.sky ? "tabDisabled" : ""
+                  !skyTabUnlocked ? "tabDisabled" : ""
                 } ${tutorialStepData?.id === "sky" ? "tutTarget" : ""}`}
-                onClick={() => state.unlocked.sky && setTab("sky")}
+                onClick={() => {
+                  if (!skyTabUnlocked) {
+                    showToast(unlockHints.sky);
+                    return;
+                  }
+                  setTab("sky");
+                }}
               >
-                Sky
+                {skyTabUnlocked ? "Sky" : "???"}
               </button>
               <button
                 className={`tab ${tab === "codex" ? "tabActive" : ""}`}
@@ -1306,7 +1365,7 @@ export default function App() {
                 }`}
                 ref={upgradesRef}
               >
-                {(hasFaithLayer ? VILLAGE_UPGRADES : VILLAGE_UPGRADES.filter((u) => u.id === "huts")).map((u) => {
+                {VILLAGE_UPGRADES.map((u) => {
                   const lvl = state.village[u.id] || 0;
                   const cost = upgradeCost(u.baseCost, u.growth, lvl);
                   const currency = u.currency || "faith";
@@ -1315,16 +1374,11 @@ export default function App() {
                       ? state.embers || 0
                       : currency === "stardust"
                       ? state.stardust || 0
-                      : (state.faith || state.devotion || 0);
+                      : state.faith || state.devotion || 0;
 
-                  const can =
-                    currency === "embers"
-                      ? have >= cost
-                      : currency === "faith"
-                      ? state.unlocked.faith && have >= cost
-                      : currency === "devotion"
-                      ? awakened && have >= cost
-                      : have >= cost;
+                  const unlockedCurrency = isCurrencyUnlocked(currency);
+                  const locked = !unlockedCurrency && u.id !== "huts";
+                  const can = unlockedCurrency && have >= cost;
 
                   const currencyLabel =
                     currency === "embers"
@@ -1342,7 +1396,8 @@ export default function App() {
                       <div className="itemEffect">{u.effect(lvl)}</div>
                       <div className="rowBetween" style={{ marginTop: 10 }}>
                         <div className="smallText">
-                          Cost: <b>{fmt(cost)}</b> {currencyLabel}
+                          Cost: <b>{locked ? "???" : fmt(cost)}</b>{" "}
+                          {locked ? "???" : currencyLabel}
                         </div>
                         <div
                           ref={

@@ -658,3 +658,12 @@ button:disabled {
   background: rgba(220, 240, 255, 0.9);
   box-shadow: 0 0 10px rgba(200, 235, 255, 0.25);
 }
+
+/* Progressive disclosure */
+.lockedBox {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+.lockedBox .statValueSmall {
+  opacity: 0.6;
+}
