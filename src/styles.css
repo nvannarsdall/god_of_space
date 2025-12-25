@@ -34,6 +34,12 @@ body {
   overflow: hidden;
 }
 
+/* Ensure the React root has a definite height so any children using
+   height: 100% (e.g. intro canvas / world canvas) can size correctly. */
+#root {
+  height: 100%;
+}
+
 /* --- UI COMPONENTS --- */
 
 /* Retro Buttons */

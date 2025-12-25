@@ -6,7 +6,11 @@ import {
   computeStarlightGain,
   computeNextStarlightFaith,
 } from "./game/compute.js";
-import { SKY_UPGRADES, VILLAGE_UPGRADES, upgradeCost } from "./game/upgrades.js";
+import {
+  SKY_UPGRADES,
+  VILLAGE_UPGRADES,
+  upgradeCost,
+} from "./game/upgrades.js";
 import {
   LS_KEY,
   baseState,
@@ -502,6 +506,18 @@ function IntroCutscene({ onDone }) {
     <div className="introCanvasWrap">
       <canvas ref={canvasRef} className="introCanvas" />
 
+      {phase !== "done" && (
+        <button
+          className="introSkip"
+          onClick={() => {
+            setPhase("done");
+            onDone?.();
+          }}
+        >
+          Skip
+        </button>
+      )}
+
       {phase === "done" && (
         <div className="introOverlay">
           <div className="introBrand">GOD OF SPACE</div>
@@ -521,8 +537,12 @@ function IntroCutscene({ onDone }) {
       )}
 
       <style>{`
-        .introCanvasWrap{position:relative;width:100%;height:100%;overflow:hidden;background:#000;}
+        /* Use viewport units so the intro never collapses to 0 height in
+           environments where parent % heights may not be established yet. */
+        .introCanvasWrap{position:relative;width:100%;height:100vh;overflow:hidden;background:#000;}
         .introCanvas{width:100%;height:100%;display:block;image-rendering:pixelated;}
+        .introSkip{position:absolute;top:14px;right:14px;z-index:5;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.22);background:rgba(10,14,20,0.55);color:#fff;font-weight:700;cursor:pointer;backdrop-filter: blur(6px);} 
+        .introSkip:hover{background:rgba(10,14,20,0.72);} 
         .introOverlay{
           position:absolute;left:50%;bottom:34px;transform:translateX(-50%);
           display:flex;flex-direction:column;align-items:center;gap:10px;
@@ -599,7 +619,6 @@ export default function App() {
   // Prestige (Step 2A)
   const [prestigeConfirm, setPrestigeConfirm] = useState(false);
   const [prestigePulse, setPrestigePulse] = useState(0);
-
 
   // "Start Game" gate (autoplay policy):
   // Browsers require a user gesture before unmuted audio can play.
@@ -696,8 +715,7 @@ export default function App() {
     faith: "Unlock Faith by building 3 Homes or reaching 50 Divine Embers.",
     starlight:
       "Earn Starlight by Shattering the Sky (Prestige) once your Faith is strong enough.",
-    stardust:
-      "Unlock Stardust after your first Shatter the Sky (Prestige).",
+    stardust: "Unlock Stardust after your first Shatter the Sky (Prestige).",
     sky: "Unlock the Sky after your first Shatter the Sky (Prestige).",
     constellations:
       "Unlock Constellations by earning Starlight (Shatter the Sky once).",
@@ -725,8 +743,10 @@ export default function App() {
   const starlightTotal = state.meta?.starlight || 0;
   const starlightDiscovered = Boolean(state.meta?.discoveredTabs?.starlight);
 
-  const unlockedConstellationsCount = (state.constellations?.unlocked || []).length;
-  const pulseConstellationsTab = starlightTotal > 0 && unlockedConstellationsCount === 0;
+  const unlockedConstellationsCount = (state.constellations?.unlocked || [])
+    .length;
+  const pulseConstellationsTab =
+    starlightTotal > 0 && unlockedConstellationsCount === 0;
 
   const showToast = (text) => {
     setToast(text);
@@ -999,7 +1019,6 @@ export default function App() {
     showToast("Progress reset.");
   };
 
-  
   // --- PRESTIGE: SHATTER THE SKY (Step 2A) ---
   const performPrestige = (prevState, gain) => {
     const prev = migrateState(prevState);
@@ -1032,7 +1051,9 @@ export default function App() {
         ...prevDisc,
         village: true,
         faith: true,
-        sky: Boolean(prevDisc.sky || prev.unlocked?.sky || prev.unlocked?.stardust),
+        sky: Boolean(
+          prevDisc.sky || prev.unlocked?.sky || prev.unlocked?.stardust
+        ),
         starlight: true,
       },
     };
@@ -1082,7 +1103,7 @@ export default function App() {
 
   const cancelPrestige = () => setPrestigeConfirm(false);
 
-const replayIntro = () => {
+  const replayIntro = () => {
     setState((s) => ({
       ...s,
       ui: { ...s.ui, introSeen: false, screen: "menu" },
@@ -1429,7 +1450,7 @@ const replayIntro = () => {
                 )}
               </div>
             </div>
-            
+
             <div
               className={`statBox ${
                 starlightDiscovered || starlightTotal > 0 ? "" : "lockedBox"
@@ -1468,7 +1489,7 @@ const replayIntro = () => {
               </div>
             </div>
 
-<div
+            <div
               className={`statBox ${
                 state.unlocked.stardust ? "" : "lockedBox"
               }`}
@@ -1551,9 +1572,11 @@ const replayIntro = () => {
                 {skyTabUnlocked || skyEverDiscovered ? "Sky" : "???"}
               </button>
               <button
-                className={`tab ${tab === "constellations" ? "tabActive" : ""} ${
-                  !constellationsUnlocked ? "tabDisabled" : ""
-                } ${pulseConstellationsTab ? "tabPulse" : ""}`}
+                className={`tab ${
+                  tab === "constellations" ? "tabActive" : ""
+                } ${!constellationsUnlocked ? "tabDisabled" : ""} ${
+                  pulseConstellationsTab ? "tabPulse" : ""
+                }`}
                 onClick={() => {
                   if (!constellationsUnlocked) {
                     showToast(unlockHints.constellations);
@@ -1596,12 +1619,19 @@ const replayIntro = () => {
                 </div>
 
                 <div className="smallText" style={{ opacity: 0.9 }}>
-                  Convert your <b>total Faith earned</b> this cycle into <b>Starlight</b>,
-                  reset the world, and begin a stronger cycle.
+                  Convert your <b>total Faith earned</b> this cycle into{" "}
+                  <b>Starlight</b>, reset the world, and begin a stronger cycle.
                   {starlightGainPreview <= 0 && nextStarlightFaith ? (
                     <>
-                      <span style={{ display: "block", marginTop: 6, opacity: 0.85 }}>
-                        Next Starlight at <b>{fmt(nextStarlightFaith)}</b> total Faith earned.
+                      <span
+                        style={{
+                          display: "block",
+                          marginTop: 6,
+                          opacity: 0.85,
+                        }}
+                      >
+                        Next Starlight at <b>{fmt(nextStarlightFaith)}</b> total
+                        Faith earned.
                       </span>
                     </>
                   ) : null}
@@ -1621,13 +1651,22 @@ const replayIntro = () => {
                   </div>
                 ) : (
                   <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-                    <div className="smallText" style={{ opacity: 0.95, lineHeight: 1.35 }}>
+                    <div
+                      className="smallText"
+                      style={{ opacity: 0.95, lineHeight: 1.35 }}
+                    >
                       <div style={{ fontWeight: 900, marginBottom: 6 }}>
                         You will gain +{starlightGainPreview} Starlight.
                       </div>
                       <div style={{ display: "grid", gap: 4 }}>
-                        <div>Resets: Embers, Faith, followers, and village buildings.</div>
-                        <div>Keeps: Starlight, Constellations, discovered tabs, and settings.</div>
+                        <div>
+                          Resets: Embers, Faith, followers, and village
+                          buildings.
+                        </div>
+                        <div>
+                          Keeps: Starlight, Constellations, discovered tabs, and
+                          settings.
+                        </div>
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -1747,7 +1786,10 @@ const replayIntro = () => {
 
             {tab === "constellations" && (
               <div className="list">
-                <ConstellationTree state={state} onUnlock={unlockConstellation} />
+                <ConstellationTree
+                  state={state}
+                  onUnlock={unlockConstellation}
+                />
               </div>
             )}
           </div>
