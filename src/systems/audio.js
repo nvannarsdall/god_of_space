@@ -299,3 +299,29 @@ export function playStinger(kind) {
       break;
   }
 }
+
+
+// Back-compat shim for earlier builds (Step 3 constellation tree).
+// Some UI code imports playSfx("reveal"|"unlock").
+// Keep this stable so future refactors don't break runtime.
+export function playSfx(kind = "generic") {
+  if (!desiredEnabled || desiredVolume <= 0) return;
+
+  // Keep SFX autoplay-safe: only play after unlock.
+  if (!unlocked) return;
+
+  switch (kind) {
+    case "reveal":
+      // soft ping
+      playBeep({ freq: 784, dur: 0.06, gain: 0.08, type: "sine" });
+      playBeep({ freq: 1046.5, dur: 0.07, gain: 0.06, type: "triangle" });
+      break;
+    case "unlock":
+      // stronger stinger
+      playStinger("constellation");
+      break;
+    default:
+      playBeep({ freq: 660, dur: 0.08, gain: 0.08, type: "sine" });
+      break;
+  }
+}

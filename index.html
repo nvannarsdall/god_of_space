@@ -10,6 +10,22 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
+    
+    <script>
+      (function(){
+        const show = (msg) => {
+          try {
+            const el = document.createElement('div');
+            el.style.cssText = 'position:fixed;inset:0;background:#0b0f16;color:#e8eefc;padding:16px;font:14px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;white-space:pre-wrap;z-index:999999';
+            el.textContent = 'App failed to start:\n\n' + msg + '\n\nTip: open DevTools Console for full details.';
+            document.body.appendChild(el);
+          } catch(e){}
+        };
+        window.addEventListener('error', (e)=> show(e?.error?.stack || e?.message || String(e)));
+        window.addEventListener('unhandledrejection', (e)=> show(e?.reason?.stack || e?.reason?.message || String(e?.reason)));
+      })();
+    </script>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
