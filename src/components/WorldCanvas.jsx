@@ -28,7 +28,7 @@ function makeStars(seed) {
   );
 }
 
-function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, prestigePulse = 0 }) {
+function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, prestigePulse = 0, milestonePulse = 0, milestoneKind = null }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
@@ -150,6 +150,40 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, presti
       });
     }
   };
+  const addBurst = (xNorm, yNorm, tag = "milestone") => {
+    const now = performance.now();
+    const x = clamp(xNorm, 0, 1);
+    const y = clamp(yNorm, 0, 1);
+    fxRef.current.push({
+      id: ++fxIdRef.current,
+      kind: "burst",
+      x,
+      y,
+      t0: now,
+      dur: 900,
+      tag,
+    });
+    // Spark motes radiating out a bit so it reads as a celebration.
+    const hueMap = {
+      faith: 45,
+      starlight: 200,
+      constellation: 210,
+      sky: 260,
+      milestone: 180,
+    };
+    const hue = hueMap[tag] ?? 180;
+    for (let i = 0; i < 18; i++) {
+      const ang = (Math.PI * 2 * i) / 18 + (Math.random() - 0.5) * 0.15;
+      const r0 = 0.01 + Math.random() * 0.01;
+      const r1 = 0.06 + Math.random() * 0.05;
+      const x0 = x + Math.cos(ang) * r0;
+      const y0 = y + Math.sin(ang) * r0;
+      const x1 = x + Math.cos(ang) * r1;
+      const y1 = y + Math.sin(ang) * r1;
+      addMotesTo(x0, y0, x1, y1, hue, 1);
+    }
+  };
+
   // Trigger a non-blocking "world shatter" flash when prestige happens.
   const lastPrestigePulseRef = useRef(prestigePulse);
   useEffect(() => {
@@ -158,6 +192,16 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, presti
       addPrestigeFlash();
     }
   }, [prestigePulse]);
+
+  // Trigger a celebratory burst for major milestone unlocks (objectives, constellations, etc.).
+  const lastMilestonePulseRef = useRef(milestonePulse);
+  useEffect(() => {
+    if (milestonePulse !== lastMilestonePulseRef.current) {
+      lastMilestonePulseRef.current = milestonePulse;
+      // Burst near the totem / center so it reads even when zoomed.
+      addBurst(TOTEM_TARGET.x, TOTEM_TARGET.y, milestoneKind || "milestone");
+    }
+  }, [milestonePulse, milestoneKind]);
 
 
   // --- ASSET LOADER ---
@@ -400,6 +444,19 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, presti
       const intensity = clamp(settings.lightingIntensity ?? 0.95, 0, 1);
       const bloomEnabled = settings.bloomEnabled !== false;
       const prosperityGlow = clamp((st?.village?.prosperity || 0) / 120, 0, 1);
+      const hutsCount = st?.village?.huts || 0;
+      const faithEarned = st?.stats?.totalFaithEarned || 0;
+      const starlightTotal = st?.meta?.starlight || 0;
+      const constCount = (st?.constellations?.unlocked || []).length;
+      // Dynamic illumination: village becomes visibly brighter as you rebuild faith and restore the heavens.
+      const illum = clamp(
+        0.15 * Math.sqrt(Math.min(hutsCount, 30) / 30) +
+          0.35 * (1 - Math.exp(-faithEarned / 120)) +
+          0.25 * (1 - Math.exp(-starlightTotal / 6)) +
+          0.15 * Math.sqrt(Math.min(constCount, 12) / 12),
+        0,
+        0.95
+      );
 
       const {
         ctx: lctx,
@@ -418,9 +475,9 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, presti
       // A slow day/night pulse keeps the world alive without being distracting.
       const phase = ((st.t || 0) / 180) % 1; // ~3 min full cycle
       const nightPulse = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2);
-      const baseDark = isSkyMode ? 0.1 : 0.38;
+      const baseDark = isSkyMode ? 0.08 : 0.42;
       const dark = clamp(
-        baseDark + nightPulse * 0.22 * intensity - prosperityGlow * 0.14,
+        baseDark + nightPulse * 0.22 * intensity - prosperityGlow * 0.14 - illum * 0.28,
         0,
         0.85
       );
@@ -430,7 +487,7 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, presti
 
       // Light sources
       const lights = [];
-      const lit = (st.devotion || 0) > 0;
+      const lit = illum > 0.03;
 
       // Village fire / home lights
       if (!isSkyMode && lit) {
@@ -441,6 +498,8 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, presti
         const startX = W * 0.5 - (totalHomes - 1) * spacing * 0.5;
         const baseY = groundY - 14;
 
+        const illumBoost = 0.75 + illum * 0.55;
+
         for (let i = 0; i < totalHomes; i++) {
           const hx = startX + i * spacing;
           const hy = baseY + (i % 2) * 3;
@@ -449,11 +508,11 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, presti
             x: hx,
             y: hy,
             r: isMain ? 95 : 70,
-            s: isMain ? 0.9 : 0.55,
+            s: (isMain ? 0.9 : 0.55) * illumBoost,
             bloom: {
               r: isMain ? 120 : 95,
               color: "rgba(255,220,160,ALPHA)",
-              a: isMain ? 0.1 : 0.07,
+              a: (isMain ? 0.1 : 0.07) * illumBoost,
             },
           });
         }
@@ -465,11 +524,11 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, presti
           x: W * 0.56,
           y: groundY - 8,
           r: lit ? 170 : 120,
-          s: lit ? 0.78 : 0.45,
+          s: (lit ? 0.78 : 0.45) * (0.8 + illum * 0.35),
           bloom: {
             r: lit ? 210 : 150,
             color: "rgba(190,210,255,ALPHA)",
-            a: lit ? 0.08 : 0.05,
+            a: (lit ? 0.08 : 0.05) * (0.8 + illum * 0.35),
           },
         });
       }
@@ -481,8 +540,8 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, presti
           x: W * 0.85,
           y: groundY - 14,
           r: 120,
-          s: 0.65,
-          bloom: { r: 150, color: "rgba(255,200,140,ALPHA)", a: 0.07 },
+          s: 0.65 * (0.8 + illum * 0.35),
+          bloom: { r: 150, color: "rgba(255,200,140,ALPHA)", a: 0.07 * (0.8 + illum * 0.35) },
         });
       }
 
@@ -752,6 +811,28 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, presti
           ctx.beginPath();
           ctx.arc(p.x * W, p.y * H, r, 0, Math.PI * 2);
           ctx.stroke();
+        } else if (p.kind === "burst") {
+          const prog = clamp((now - p.t0) / (p.dur || 900), 0, 1);
+          const x = p.x * W;
+          const y = p.y * H;
+          const r = (14 + prog * 110) * (1 + (p.tag === "constellation" ? 0.15 : 0));
+          const alpha = 0.55 * (1 - prog);
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.stroke();
+          // Inner sparkle cross
+          ctx.globalAlpha = alpha * 0.7;
+          ctx.beginPath();
+          ctx.moveTo(x - 14, y);
+          ctx.lineTo(x + 14, y);
+          ctx.moveTo(x, y - 14);
+          ctx.lineTo(x, y + 14);
+          ctx.stroke();
+          ctx.restore();
         } else if (p.kind === "prestige") {
           const prog = Math.max(0, Math.min(1, age / (p.dur || 800)));
           // Pulse: bright flash then falloff into a soft dark veil.

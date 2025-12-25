@@ -62,15 +62,13 @@ function computeNextStarlightFaith(s) {
 }
 
 function compute(s) {
-  // Defensive normalization: migrated/old saves may lack nested objects.
-  // IMPORTANT: `s` is treated as immutable. Some dev environments (and React tooling)
-  // may freeze state objects, so we must never assign to `s.*` here.
+  // Treat state as immutable/read-only.
   const S = s || {};
   const village = S.village || {};
   const sky = S.sky || {};
   const unlocked = S.unlocked || {};
   const buffs = S.buffs || {};
-  const stats = S.stats || {};
+
   const huts = village.huts || 0;
   const farms = village.farms || 0;
   const temples = village.temples || 0;
@@ -95,7 +93,9 @@ function compute(s) {
   cap *= 1 + transcend * 0.08;
 
   // === DIVINE EMBERS (Phase B early loop) ===
-  const emberRate = Math.max(0, huts * 0.05);
+  // Early-game pacing: Homes should matter as a first purchase.
+  // 0.10 Ember/sec per Home keeps passive relevant without making clicking obsolete.
+  const emberRate = Math.max(0, huts * 0.1);
 
   // Click gain (Phase C pacing): mild early boost that gently soft-diminishes after ~50 Embers.
   // App.jsx clamps click gains to >= 1, so we keep this always >= 1.
@@ -108,13 +108,13 @@ function compute(s) {
 
   // === FOLLOWER GROWTH ===
   const growthAdd = huts >= 1 ? 0.07 + huts * 0.07 + farms * 0.11 : 0;
-  const pressure = cap <= 0 ? 1 : clamp(1 - s.followers / cap, 0, 1);
+  const pressure = cap <= 0 ? 1 : clamp(1 - (S.followers || 0) / cap, 0, 1);
   let followerRate =
     unlocked.awakened && huts >= 1 ? growthAdd * (0.2 + 0.8 * pressure) : 0;
 
   // === PROSPERITY LOOP ===
   const prosperityRate = unlocked.awakened
-    ? 0.02 * s.followers + 0.05 * temples + 0.04 * festivals
+    ? 0.02 * (S.followers || 0) + 0.05 * temples + 0.04 * festivals
     : 0;
 
   // === DEVOTION PER FOLLOWER ===
@@ -132,7 +132,7 @@ function compute(s) {
   const memory = S.meta?.memory || 0;
   let globalMul = (1 + crown * 0.05) * (1 + memory * 0.05);
   let devotionRate = unlocked.awakened
-    ? s.followers * devotionPerFollower * surgeEV * globalMul
+    ? (S.followers || 0) * devotionPerFollower * surgeEV * globalMul
     : 0;
 
   // === PHASE C: EMBERS → FAITH TRANSITION ===
@@ -142,9 +142,10 @@ function compute(s) {
   // - Temples multiply all Faith gains (they are amplifiers, not the only source)
   const faithUnlocked = !!unlocked?.faith;
 
-  const faithFromHomes = faithUnlocked ? huts * 0.002 : 0;
+  // Tiny baseline Faith trickle so the Embers → Faith transition never feels stalled.
+  const faithFromHomes = faithUnlocked ? huts * 0.0035 : 0;
 
-  const baseConversion = 0.015; // 1.5% of Ember/sec
+  const baseConversion = 0.02; // 2.0% of Ember/sec
   const farmBonus = farms * 0.01; // +1% per Farm
   const conversionRate = faithUnlocked ? baseConversion + farmBonus : 0;
   const faithFromEmbers = faithUnlocked ? emberRate * conversionRate : 0;
@@ -154,22 +155,11 @@ function compute(s) {
   devotionRate =
     (devotionRate + faithFromHomes + faithFromEmbers) * templeFaithMult;
 
-  // === REVERENCE (Devotion) DECAY — Phase 2 ===
-  // Reverence is unstable unless supported by village structures.
-  // This creates meaningful tension so the player must invest in stability.
-  const devotionDecayRate = unlocked.awakened
-    ? (() => {
-        const support = 1 + 0.14 * temples + 0.08 * shrines + 0.1 * festivals;
-        const veilNow = clamp(1 - starsong * 0.09, 0.08, 1);
-        const veilPressure = 1 + 0.1 * veilNow;
-        // Small baseline + scales gently with current stored devotion
-        const base = 0.06 + 0.0022 * (storedFaith || 0);
-        return (base * veilPressure) / support;
-      })()
-    : 0;
-
-  // Net devotion rate (can go negative if decay exceeds gain)
-  devotionRate = devotionRate - devotionDecayRate;
+  // === REVERENCE (Devotion) DECAY — disabled ===
+  // The current design spine (Embers → Faith → Prestige Starlight) does not include
+  // a "numbers go down" decay mechanic. We keep this slot for a possible later
+  // challenge layer, but it is intentionally disabled for now.
+  const devotionDecayRate = 0;
 
   // === OMENS ===
   let omenRate = unlocked.awakened
@@ -196,10 +186,14 @@ function compute(s) {
   omenClickGain *= portentMul;
   const finalProsperityRate = prosperityRate * portentMul;
 
+  // Kept for backward-compat: some UI may still show a "decay" rate slot.
+  // Current design intentionally disables any "numbers go down" mechanic.
+  // NOTE: devotionDecayRate is already defined above (disabled) — do not redeclare.
+
   // === CONSTELLATION POINTS (Phase 3) ===
   // Slow, steady trickle that scales with devotion & starlight activity.
   // (This is intentionally gentle; node costs are small.)
-  const cycles = s.meta?.cycles || 0;
+  const cycles = S.meta?.cycles || 0;
   const constellationPointRate = unlocked.awakened
     ? clamp(devotionRate / 1800, 0, 2.5) +
       0.01 +
@@ -214,6 +208,7 @@ function compute(s) {
     devotionRate,
     faithRate: devotionRate,
     emberRate,
+    emberClickGain,
     devotionDecayRate,
     prosperityRate: finalProsperityRate,
     omenRate,
@@ -230,7 +225,8 @@ function compute(s) {
 
   // Phase B: constellations are a later-layer system; don't apply bonuses until the sky layer is unlocked.
   if (unlocked?.sky || (S.constellations?.unlocked || []).length > 0) {
-    withBonuses = applyConstellationBonuses(s, withBonuses);
+    // Signature: apply constellation effects to computed output (pure).
+    withBonuses = applyConstellationBonuses(withBonuses, S);
   }
 
   return withBonuses;

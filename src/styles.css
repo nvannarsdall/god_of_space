@@ -34,12 +34,6 @@ body {
   overflow: hidden;
 }
 
-/* Ensure the React root has a definite height so any children using
-   height: 100% (e.g. intro canvas / world canvas) can size correctly. */
-#root {
-  height: 100%;
-}
-
 /* --- UI COMPONENTS --- */
 
 /* Retro Buttons */
@@ -605,7 +599,130 @@ button:disabled {
 }
 
 .constellationLine {
+  stroke: rgba(120, 140, 200, 0.18);
+  stroke-width: 2;
   filter: drop-shadow(0 0 6px rgba(170, 215, 255, 0.35));
+  transition: stroke 180ms ease, stroke-width 180ms ease, opacity 180ms ease;
+}
+
+.constellationLine.on {
+  stroke: rgba(170, 210, 255, 0.58);
+  stroke-width: 3;
+}
+
+.constellationLine.unlocking {
+  stroke: rgba(220, 245, 255, 0.85);
+  stroke-dasharray: 14 10;
+  animation: gosLineDraw 760ms ease-out both;
+}
+
+@keyframes gosLineDraw {
+  from {
+    stroke-dashoffset: 60;
+    opacity: 0.25;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+.starNode {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(110, 130, 170, 0.45);
+  box-shadow: 0 0 14px rgba(180, 230, 255, 0.14);
+  cursor: pointer;
+  position: relative;
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.starNode:hover {
+  transform: scale(1.12);
+}
+
+.starNode.can {
+  background: rgba(160, 210, 255, 0.72);
+  box-shadow: 0 0 18px rgba(170, 215, 255, 0.24);
+}
+
+.starNode.unlocked {
+  background: rgba(235, 248, 255, 0.95);
+  box-shadow: 0 0 22px rgba(210, 245, 255, 0.42);
+}
+
+.starNode.selected {
+  outline: 2px solid rgba(210, 245, 255, 0.35);
+  outline-offset: 4px;
+}
+
+.starNode.justRevealed {
+  animation: gosNodeReveal 900ms ease-out both;
+}
+
+@keyframes gosNodeReveal {
+  0% {
+    transform: scale(0.75);
+    box-shadow: 0 0 0 rgba(210, 245, 255, 0);
+  }
+  60% {
+    transform: scale(1.25);
+    box-shadow: 0 0 28px rgba(210, 245, 255, 0.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.starTooltip {
+  position: absolute;
+  left: 50%;
+  top: 22px;
+  transform: translateX(-50%);
+  width: 260px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(180, 220, 255, 0.25);
+  background: rgba(10, 12, 22, 0.86);
+  box-shadow: 0 0 26px rgba(160, 210, 255, 0.10);
+  z-index: 5;
+}
+
+.constellationBurst {
+  fill: none;
+  stroke: rgba(235, 250, 255, 0.9);
+  stroke-width: 3;
+  animation: gosBurst 700ms ease-out both;
+}
+
+.constellationReveal {
+  fill: none;
+  stroke: rgba(170, 210, 255, 0.7);
+  stroke-width: 2;
+  animation: gosReveal 650ms ease-out both;
+}
+
+@keyframes gosBurst {
+  from {
+    r: 0;
+    opacity: 0.9;
+  }
+  to {
+    r: 40;
+    opacity: 0;
+  }
+}
+
+@keyframes gosReveal {
+  from {
+    r: 0;
+    opacity: 0.7;
+  }
+  to {
+    r: 28;
+    opacity: 0;
+  }
 }
 
 .constellationDot {

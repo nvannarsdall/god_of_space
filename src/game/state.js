@@ -64,6 +64,7 @@ function baseState() {
       unlocked: [],
       points: 0, // legacy (unused after Step 2B)
       active: null, // reserved for future modes
+      purchasesThisCycle: 0, // Step 3: for rule-changing nodes (e.g., first unlock discount)
     },
 
     village: {
@@ -136,6 +137,11 @@ function migrateState(s) {
   if (typeof next.stats.passiveEmbers !== "number") next.stats.passiveEmbers = 0;
 
   if (typeof next.stats.totalFaithEarned !== "number") next.stats.totalFaithEarned = 0;
+
+  // Step 3: ensure constellation runtime fields exist
+  if (!next.constellations || typeof next.constellations !== "object") next.constellations = { unlocked: [] };
+  if (!Array.isArray(next.constellations.unlocked)) next.constellations.unlocked = [];
+  if (typeof next.constellations.purchasesThisCycle !== "number") next.constellations.purchasesThisCycle = 0;
 
 
   // Prestige meta: ensure starlight + discovered tabs exist

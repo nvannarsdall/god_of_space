@@ -7,6 +7,8 @@ export { CONSTELLATION_NODES as CONSTELLATIONS } from "./constellationData.js";
 export {
   getNodeById,
   unlockedSet,
+  isNodeRevealed,
+  getRevealHint,
   canUnlock,
   canUnlockWithReason,
   unlockNode,
