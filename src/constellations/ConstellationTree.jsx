@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
-import { Button, Card, Pill } from "../components/ui";
-import { CONSTELLATIONS, canUnlock } from "./constellations";
+import { Button, Card, Pill } from "../components/ui.jsx";
+import { CONSTELLATIONS, canUnlock } from "./constellations.js";
 
 /**
  * ConstellationTree (Phase 3)

@@ -1,8 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import WorldCanvas from "./components/WorldCanvas";
-import { Button, Card, Pill, Progress } from "./components/ui";
-import { compute, computeStarlightGain, computeNextStarlightFaith } from "./game/compute";
-import { SKY_UPGRADES, VILLAGE_UPGRADES, upgradeCost } from "./game/upgrades";
+import WorldCanvas from "./components/WorldCanvas.jsx";
+import { Button, Card, Pill, Progress } from "./components/ui.jsx";
+import {
+  compute,
+  computeStarlightGain,
+  computeNextStarlightFaith,
+} from "./game/compute.js";
+import { SKY_UPGRADES, VILLAGE_UPGRADES, upgradeCost } from "./game/upgrades.js";
 import {
   LS_KEY,
   baseState,
@@ -12,18 +16,18 @@ import {
   loadState,
   migrateState,
   saveState,
-} from "./game/state";
-import TutorialOverlay from "./tutorial/TutorialOverlay";
-import { buildTutorialSteps } from "./tutorial/tutorialData";
-import ObjectiveHUD from "./systems/ObjectiveHUD";
-import { getObjective } from "./systems/objectives";
-import { applyMusicSettings, getMusic } from "./systems/audio";
-import ConstellationTree from "./constellations/ConstellationTree";
+} from "./game/state.js";
+import TutorialOverlay from "./tutorial/TutorialOverlay.jsx";
+import { buildTutorialSteps } from "./tutorial/tutorialData.js";
+import ObjectiveHUD from "./systems/ObjectiveHUD.jsx";
+import { getObjective } from "./systems/objectives.js";
+import { applyMusicSettings, getMusic } from "./systems/audio.js";
+import ConstellationTree from "./constellations/ConstellationTree.jsx";
 import {
   CONSTELLATIONS,
   canUnlock as canUnlockConstellation,
   applyConstellationStartBonuses,
-} from "./constellations/constellations";
+} from "./constellations/constellations.js";
 
 // Music is managed by a single authority in src/systems/audio.js
 
@@ -545,7 +549,7 @@ function IntroCutscene({ onDone }) {
 // Dev-only: pass an immutable snapshot to compute() to catch accidental mutations.
 // We clone first so we don't freeze the live React state object.
 function devFreezeState(state) {
-  if (process.env.NODE_ENV === "production") return state;
+  if (import.meta.env.PROD) return state;
   try {
     const cloned = JSON.parse(JSON.stringify(state));
     const seen = new WeakSet();
@@ -701,12 +705,12 @@ export default function App() {
   const isCurrencyUnlocked = (currency) => {
     if (currency === "embers") return true;
     if (currency === "faith") return Boolean(state.unlocked?.faith);
-    if (currency === "stardust") return Boolean(state.unlocked?.starlight);
+    if (currency === "stardust") return Boolean(state.unlocked?.stardust);
     return true;
   };
 
   const skyTabUnlocked = Boolean(
-    state.unlocked?.sky && state.unlocked?.starlight
+    state.unlocked?.sky && state.unlocked?.stardust
   );
 
   const skyEverDiscovered = Boolean(state.meta?.discoveredTabs?.sky);
@@ -771,7 +775,7 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const base = String(process.env.PUBLIC_URL || "").replace(/\/$/, "");
+    const base = String(import.meta.env.BASE_URL || "/").replace(/\/$/, "");
     const setVar = (name, relPath) =>
       root.style.setProperty(name, `url("${base}${relPath}")`);
     setVar("--px-panel-tile", "/assets/pixel/panel_tile.png");
@@ -1027,7 +1031,7 @@ export default function App() {
         ...prevDisc,
         village: true,
         faith: true,
-        sky: Boolean(prevDisc.sky || prev.unlocked?.sky || prev.unlocked?.starlight),
+        sky: Boolean(prevDisc.sky || prev.unlocked?.sky || prev.unlocked?.stardust),
         starlight: true,
       },
     };
@@ -1465,7 +1469,7 @@ const replayIntro = () => {
 
 <div
               className={`statBox ${
-                state.unlocked.starlight ? "" : "lockedBox"
+                state.unlocked.stardust ? "" : "lockedBox"
               }`}
             >
               <div className="rowBetween">
@@ -1475,14 +1479,14 @@ const replayIntro = () => {
                     src="/assets/pixel/icon_starlight.png"
                     alt=""
                   />{" "}
-                  {state.unlocked.starlight ? "Stardust" : "Stardust (???)"}
+                  {state.unlocked.stardust ? "Stardust" : "Stardust (???)"}
                 </div>
                 <div className="statValueSmall">
-                  {state.unlocked.starlight ? fmt(state.stardust) : "—"}
+                  {state.unlocked.stardust ? fmt(state.stardust) : "—"}
                 </div>
               </div>
               <div className="statSub" style={{ marginTop: 6 }}>
-                {state.unlocked.starlight ? (
+                {state.unlocked.stardust ? (
                   <>
                     <div>
                       <b>Produces:</b> Clicking the sky

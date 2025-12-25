@@ -1,5 +1,8 @@
-import { clamp } from "./state";
-import { applyConstellationBonuses, getStarlightGainMultiplier } from "../constellations/constellations";
+import { clamp } from "./state.js";
+import {
+  applyConstellationBonuses,
+  getStarlightGainMultiplier,
+} from "../constellations/constellations.js";
 // Prestige currency (Starlight) is earned on "Shatter the Sky" and persists across cycles.
 // We base gain on total Faith earned this run (not current Faith, which can be spent).
 function computeStarlightGain(s) {

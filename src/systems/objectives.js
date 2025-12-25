@@ -1,5 +1,5 @@
 // Phase B objective system — informative only, never blocks UI.
-import { computeStarlightGain, computeNextStarlightFaith } from "../game/compute";
+import { computeStarlightGain, computeNextStarlightFaith } from "../game/compute.js";
 
 export function getObjective(state, computed) {
   const embers = state.embers || 0;

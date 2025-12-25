@@ -45,7 +45,7 @@ function baseState() {
         village: true,
         faith: false,
         sky: false,
-        starlight: false,
+        stardust: false,
         constellations: false,
       },
     },
@@ -83,7 +83,7 @@ function baseState() {
       portentUntil: 0,
     },
 
-    unlocked: { awakened: false, faith: false, starlight: false, constellations: false, convert: false, sky: false },
+    unlocked: { awakened: false, faith: false, stardust: false, constellations: false, convert: false, sky: false },
     ui: {
       tutorialHidden: true,
       tab: "village",
@@ -155,8 +155,14 @@ function migrateState(s) {
       ? next.devotion
       : 0;
 
+  // Legacy alias: older saves used unlocked.starlight to gate the (now renamed) Stardust bucket.
+  if (next.unlocked?.starlight && !next.unlocked?.stardust) next.unlocked.stardust = true;
+
+  // Stardust (legacy bucket) is now only revealed after the first Prestige / Starlight earned.
+  if ((next.meta?.starlight || 0) > 0 || (next.meta?.totalPrestiges || 0) > 0) next.unlocked.stardust = true;
+
   if (next.unlocked?.faith || faithNow > 0) next.meta.discoveredTabs.faith = true;
-  if (next.unlocked?.sky || next.unlocked?.starlight || (next.sky?.starsong || 0) > 0 || (next.village?.temples || 0) > 0)
+  if (next.unlocked?.sky || next.unlocked?.stardust || (next.sky?.starsong || 0) > 0 || (next.village?.temples || 0) > 0)
     next.meta.discoveredTabs.sky = true;
   if (next.meta.starlight > 0) next.meta.discoveredTabs.starlight = true;
   if (next.unlocked?.constellations || (next.constellations?.unlocked || []).length > 0) next.meta.discoveredTabs.constellations = true;
@@ -178,9 +184,7 @@ function migrateState(s) {
 
     // Phase C unlock order: Faith unlocks after basic shelter is established
   if ((next.village?.huts || 0) >= 3 || (next.embers || 0) >= 50) next.unlocked.faith = true;
-  // Starlight unlocks after the first Temple is raised (and Faith is present)
-  if ((next.village?.temples || 0) >= 1) next.unlocked.starlight = true;
-  // Constellations unlock after the first Prestige (earning Starlight).
+// Constellations unlock after the first Prestige (earning Starlight).
   // They are purchased with Starlight and persist across cycles.
   if ((next.meta?.starlight || 0) >= 1 || (next.constellations?.unlocked || []).length > 0) next.unlocked.constellations = true;
 
@@ -204,7 +208,7 @@ function migrateState(s) {
     next.sky || {}
   );
   next.unlocked = Object.assign(
-    { awakened: false, faith: false, starlight: false, constellations: false, convert: false, sky: false },
+    { awakened: false, faith: false, stardust: false, constellations: false, convert: false, sky: false },
     next.unlocked || {}
   );
 

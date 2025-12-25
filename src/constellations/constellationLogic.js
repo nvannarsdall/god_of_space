@@ -6,7 +6,7 @@
 //
 // Step 3 can replace the UI with a constellation map without changing this logic.
 
-import { CONSTELLATION_NODES } from "./constellationData";
+import { CONSTELLATION_NODES } from "./constellationData.js";
 
 export function getNodeById(id) {
   return CONSTELLATION_NODES.find((n) => String(n.id) === String(id)) || null;

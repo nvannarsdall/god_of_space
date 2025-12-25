@@ -3,7 +3,7 @@
 // Step 2D separates data (constellationData.js) from logic (constellationLogic.js)
 // so Step 3 can swap in a star-map UI without rewriting gameplay rules.
 
-export { CONSTELLATION_NODES as CONSTELLATIONS } from "./constellationData";
+export { CONSTELLATION_NODES as CONSTELLATIONS } from "./constellationData.js";
 export {
   getNodeById,
   unlockedSet,
@@ -13,4 +13,4 @@ export {
   applyConstellationBonuses,
   applyConstellationStartBonuses,
   getStarlightGainMultiplier,
-} from "./constellationLogic";
+} from "./constellationLogic.js";
