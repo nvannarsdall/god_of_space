@@ -696,8 +696,9 @@ export default function App() {
     faith: "Unlock Faith by building 3 Homes or reaching 50 Divine Embers.",
     starlight:
       "Earn Starlight by Shattering the Sky (Prestige) once your Faith is strong enough.",
-    stardust: "Unlock Stardust by raising your first Temple.",
-    sky: "Unlock the Sky by raising your first Temple.",
+    stardust:
+      "Unlock Stardust after your first Shatter the Sky (Prestige).",
+    sky: "Unlock the Sky after your first Shatter the Sky (Prestige).",
     constellations:
       "Unlock Constellations by earning Starlight (Shatter the Sky once).",
   };

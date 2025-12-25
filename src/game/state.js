@@ -162,9 +162,19 @@ function migrateState(s) {
   if ((next.meta?.starlight || 0) > 0 || (next.meta?.totalPrestiges || 0) > 0) next.unlocked.stardust = true;
 
   if (next.unlocked?.faith || faithNow > 0) next.meta.discoveredTabs.faith = true;
-  if (next.unlocked?.sky || next.unlocked?.stardust || (next.sky?.starsong || 0) > 0 || (next.village?.temples || 0) > 0)
-    next.meta.discoveredTabs.sky = true;
+
+  // Strict chapter order: keep Sky as a later chapter.
+  // Once the player has prestiged (earned Starlight) we allow Sky to be "discoverable".
+  // (The tab can still be locked behind further requirements.)
   if (next.meta.starlight > 0) next.meta.discoveredTabs.starlight = true;
+  if (
+    next.meta.starlight > 0 ||
+    next.unlocked?.constellations ||
+    (next.constellations?.unlocked || []).length > 0 ||
+    next.unlocked?.sky
+  ) {
+    next.meta.discoveredTabs.sky = true;
+  }
   if (next.unlocked?.constellations || (next.constellations?.unlocked || []).length > 0) next.meta.discoveredTabs.constellations = true;
 
 
@@ -178,9 +188,9 @@ function migrateState(s) {
   // unlock convert once temples exist
   if ((next.village?.temples || 0) >= 1) next.unlocked.convert = true;
 
-  // unlock sky once temples are raised or you have sky upgrades
-  if ((next.village?.temples || 0) > 0 || (next.sky?.starsong || 0) > 0)
-    next.unlocked.sky = true;
+  // Unlock Sky as a later chapter: after first Prestige (Starlight earned).
+  // This preserves the intended order: Embers → Faith → Starlight → Constellations → Sky.
+  if ((next.meta?.starlight || 0) > 0) next.unlocked.sky = true;
 
     // Phase C unlock order: Faith unlocks after basic shelter is established
   if ((next.village?.huts || 0) >= 3 || (next.embers || 0) >= 50) next.unlocked.faith = true;

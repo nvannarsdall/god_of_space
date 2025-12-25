@@ -86,7 +86,9 @@ function compute(s) {
   cap *= 1 + transcend * 0.08;
 
   // === DIVINE EMBERS (Phase B early loop) ===
-  const emberRate = Math.max(0, huts * 0.05);
+  // Early-game pacing: Homes should matter as a first purchase.
+  // 0.10 Ember/sec per Home keeps passive relevant without making clicking obsolete.
+  const emberRate = Math.max(0, huts * 0.1);
 
   // Click gain (Phase C pacing): mild early boost that gently soft-diminishes after ~50 Embers.
   // App.jsx clamps click gains to >= 1, so we keep this always >= 1.
@@ -133,9 +135,10 @@ function compute(s) {
   // - Temples multiply all Faith gains (they are amplifiers, not the only source)
   const faithUnlocked = !!s.unlocked?.faith;
 
-  const faithFromHomes = faithUnlocked ? huts * 0.002 : 0;
+  // Tiny baseline Faith trickle so the Embers → Faith transition never feels stalled.
+  const faithFromHomes = faithUnlocked ? huts * 0.0035 : 0;
 
-  const baseConversion = 0.015; // 1.5% of Ember/sec
+  const baseConversion = 0.02; // 2.0% of Ember/sec
   const farmBonus = farms * 0.01; // +1% per Farm
   const conversionRate = faithUnlocked ? baseConversion + farmBonus : 0;
   const faithFromEmbers = faithUnlocked ? emberRate * conversionRate : 0;
@@ -145,22 +148,10 @@ function compute(s) {
   devotionRate =
     (devotionRate + faithFromHomes + faithFromEmbers) * templeFaithMult;
 
-  // === REVERENCE (Devotion) DECAY — Phase 2 ===
-  // Reverence is unstable unless supported by village structures.
-  // This creates meaningful tension so the player must invest in stability.
-  const devotionDecayRate = s.unlocked.awakened
-    ? (() => {
-        const support = 1 + 0.14 * temples + 0.08 * shrines + 0.1 * festivals;
-        const veilNow = clamp(1 - starsong * 0.09, 0.08, 1);
-        const veilPressure = 1 + 0.1 * veilNow;
-        // Small baseline + scales gently with current stored devotion
-        const base = 0.06 + 0.0022 * (storedFaith || 0);
-        return (base * veilPressure) / support;
-      })()
-    : 0;
-
-  // Net devotion rate (can go negative if decay exceeds gain)
-  devotionRate = devotionRate - devotionDecayRate;
+  // === REVERENCE (Devotion) DECAY — disabled ===
+  // The current design spine (Embers → Faith → Prestige Starlight) does not include
+  // a "numbers go down" decay mechanic. We keep this slot for a possible later
+  // challenge layer, but it is intentionally disabled for now.
 
   // === OMENS ===
   let omenRate = s.unlocked.awakened
