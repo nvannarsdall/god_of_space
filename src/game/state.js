@@ -39,6 +39,15 @@ function baseState() {
     meta: {
       cycles: 0,
       memory: 0,
+      starlight: 0,
+      totalPrestiges: 0,
+      discoveredTabs: {
+        village: true,
+        faith: false,
+        sky: false,
+        starlight: false,
+        constellations: false,
+      },
     },
 
     followers: 0,
@@ -53,8 +62,8 @@ function baseState() {
 
     constellations: {
       unlocked: [],
-      points: 0,
-      active: null,
+      points: 0, // legacy (unused after Step 2B)
+      active: null, // reserved for future modes
     },
 
     village: {
@@ -83,10 +92,12 @@ function baseState() {
       tutorialActive: false,
       introSeen: false,
       started: false,
-    },
+          settingsOpen: false,
+},
 
     stats: {
       passiveEmbers: 0, // accumulated from passive generation
+      totalFaithEarned: 0, // accumulated over this run (for prestige gain)
     },
 
     settings: {
@@ -124,6 +135,33 @@ function migrateState(s) {
   if (!next.stats || typeof next.stats !== "object") next.stats = {};
   if (typeof next.stats.passiveEmbers !== "number") next.stats.passiveEmbers = 0;
 
+  if (typeof next.stats.totalFaithEarned !== "number") next.stats.totalFaithEarned = 0;
+
+
+  // Prestige meta: ensure starlight + discovered tabs exist
+  if (!next.meta || typeof next.meta !== "object") next.meta = {};
+  if (typeof next.meta.cycles !== "number") next.meta.cycles = 0;
+  if (typeof next.meta.memory !== "number") next.meta.memory = 0;
+  if (typeof next.meta.starlight !== "number") next.meta.starlight = 0;
+  if (typeof next.meta.totalPrestiges !== "number") next.meta.totalPrestiges = 0;
+  if (!next.meta.discoveredTabs || typeof next.meta.discoveredTabs !== "object") next.meta.discoveredTabs = {};
+  next.meta.discoveredTabs.village = true;
+  if (typeof next.meta.discoveredTabs.constellations !== "boolean") next.meta.discoveredTabs.constellations = false;
+
+  const faithNow =
+    typeof next.faith === "number"
+      ? next.faith
+      : typeof next.devotion === "number"
+      ? next.devotion
+      : 0;
+
+  if (next.unlocked?.faith || faithNow > 0) next.meta.discoveredTabs.faith = true;
+  if (next.unlocked?.sky || next.unlocked?.starlight || (next.sky?.starsong || 0) > 0 || (next.village?.temples || 0) > 0)
+    next.meta.discoveredTabs.sky = true;
+  if (next.meta.starlight > 0) next.meta.discoveredTabs.starlight = true;
+  if (next.unlocked?.constellations || (next.constellations?.unlocked || []).length > 0) next.meta.discoveredTabs.constellations = true;
+
+
   // Phase C: ensure Faith exists (alias legacy devotion)
   if (typeof next.faith !== "number") next.faith = typeof next.devotion === "number" ? next.devotion : 0;
   if (typeof next.devotion !== "number") next.devotion = next.faith;
@@ -142,8 +180,12 @@ function migrateState(s) {
   if ((next.village?.huts || 0) >= 3 || (next.embers || 0) >= 50) next.unlocked.faith = true;
   // Starlight unlocks after the first Temple is raised (and Faith is present)
   if ((next.village?.temples || 0) >= 1) next.unlocked.starlight = true;
-  // Constellations unlock after meaningful starlight is gathered
-  if ((next.stardust || 0) >= 20) next.unlocked.constellations = true;
+  // Constellations unlock after the first Prestige (earning Starlight).
+  // They are purchased with Starlight and persist across cycles.
+  if ((next.meta?.starlight || 0) >= 1 || (next.constellations?.unlocked || []).length > 0) next.unlocked.constellations = true;
+
+  // Constellation: Belief Rekindled makes Faith immediately available in new cycles.
+  if ((next.constellations?.unlocked || []).includes("belief_rekindled")) next.unlocked.faith = true;
 
 // sanity
   next.followers = Math.max(0, next.followers);
@@ -184,7 +226,8 @@ function migrateState(s) {
       tutorialActive: false,
       introSeen: false,
       started: false,
-    },
+          settingsOpen: false,
+},
     next.ui || {}
   );
 
@@ -215,7 +258,9 @@ function migrateState(s) {
     next.settings || {}
   );
 
-  return next;
+  
+
+return next;
 }
 
 export {

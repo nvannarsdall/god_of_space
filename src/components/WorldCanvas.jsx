@@ -28,7 +28,7 @@ function makeStars(seed) {
   );
 }
 
-function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
+function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky, prestigePulse = 0 }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
@@ -114,6 +114,16 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       t0: performance.now(),
     });
   };
+  const addPrestigeFlash = () => {
+    const now = performance.now();
+    fxRef.current.push({
+      id: ++fxIdRef.current,
+      kind: "prestige",
+      t0: now,
+      dur: 800,
+    });
+  };
+
   const addFloat = (x, y, text) => {
     fxRef.current.push({
       id: ++fxIdRef.current,
@@ -140,6 +150,15 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
       });
     }
   };
+  // Trigger a non-blocking "world shatter" flash when prestige happens.
+  const lastPrestigePulseRef = useRef(prestigePulse);
+  useEffect(() => {
+    if (prestigePulse !== lastPrestigePulseRef.current) {
+      lastPrestigePulseRef.current = prestigePulse;
+      addPrestigeFlash();
+    }
+  }, [prestigePulse]);
+
 
   // --- ASSET LOADER ---
   useEffect(() => {
@@ -599,15 +618,12 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         if (unlockedConst.length) {
           ctx.save();
           ctx.fillStyle = "rgba(220,240,255,0.85)";
+          // Step 2B: highlight newly restored constellation nodes.
           const nodePoints = {
-            root_dusk: { x: 0.5, y: 0.15 },
-            ember_hearth: { x: 0.28, y: 0.33 },
-            harvest_ring: { x: 0.18, y: 0.55 },
-            sanctuary_lane: { x: 0.36, y: 0.55 },
-            guiding_star: { x: 0.72, y: 0.33 },
-            chorus_lines: { x: 0.62, y: 0.55 },
-            orbit_warden: { x: 0.82, y: 0.55 },
-            crown_of_night: { x: 0.72, y: 0.78 },
+            root_first_spark: { x: 0.5, y: 0.18 },
+            village_memory: { x: 0.28, y: 0.45 },
+            belief_rekindled: { x: 0.5, y: 0.52 },
+            sky_scars: { x: 0.72, y: 0.45 },
           };
           unlockedConst.forEach((id) => {
             const p = nodePoints[id];
@@ -736,6 +752,18 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
           ctx.beginPath();
           ctx.arc(p.x * W, p.y * H, r, 0, Math.PI * 2);
           ctx.stroke();
+        } else if (p.kind === "prestige") {
+          const prog = Math.max(0, Math.min(1, age / (p.dur || 800)));
+          // Pulse: bright flash then falloff into a soft dark veil.
+          const flash = Math.sin(Math.PI * prog);
+          ctx.save();
+          ctx.globalAlpha = 0.55 * flash;
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, W, H);
+          ctx.globalAlpha = 0.35 * (1 - prog);
+          ctx.fillStyle = "#000000";
+          ctx.fillRect(0, 0, W, H);
+          ctx.restore();
         }
       });
 

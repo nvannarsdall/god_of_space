@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import WorldCanvas from "./components/WorldCanvas";
 import { Button, Card, Pill, Progress } from "./components/ui";
-import { compute } from "./game/compute";
+import { compute, computeStarlightGain, computeNextStarlightFaith } from "./game/compute";
 import { SKY_UPGRADES, VILLAGE_UPGRADES, upgradeCost } from "./game/upgrades";
 import {
   LS_KEY,
@@ -18,6 +18,12 @@ import { buildTutorialSteps } from "./tutorial/tutorialData";
 import ObjectiveHUD from "./systems/ObjectiveHUD";
 import { getObjective } from "./systems/objectives";
 import { applyMusicSettings, getMusic } from "./systems/audio";
+import ConstellationTree from "./constellations/ConstellationTree";
+import {
+  CONSTELLATIONS,
+  canUnlock as canUnlockConstellation,
+  applyConstellationStartBonuses,
+} from "./constellations/constellations";
 
 // Music is managed by a single authority in src/systems/audio.js
 
@@ -586,6 +592,11 @@ export default function App() {
   );
   const [toast, setToast] = useState(null);
 
+  // Prestige (Step 2A)
+  const [prestigeConfirm, setPrestigeConfirm] = useState(false);
+  const [prestigePulse, setPrestigePulse] = useState(0);
+
+
   // "Start Game" gate (autoplay policy):
   // Browsers require a user gesture before unmuted audio can play.
   // We show this once per tab session (sessionStorage) before intro/tutorial.
@@ -679,9 +690,12 @@ export default function App() {
 
   const unlockHints = {
     faith: "Unlock Faith by building 3 Homes or reaching 50 Divine Embers.",
-    starlight: "Unlock Starlight by raising your first Temple.",
+    starlight:
+      "Earn Starlight by Shattering the Sky (Prestige) once your Faith is strong enough.",
+    stardust: "Unlock Stardust by raising your first Temple.",
     sky: "Unlock the Sky by raising your first Temple.",
-    constellations: "Unlock Constellations after gathering 20 Starlight.",
+    constellations:
+      "Unlock Constellations by earning Starlight (Shatter the Sky once).",
   };
 
   const isCurrencyUnlocked = (currency) => {
@@ -695,9 +709,64 @@ export default function App() {
     state.unlocked?.sky && state.unlocked?.starlight
   );
 
+  const skyEverDiscovered = Boolean(state.meta?.discoveredTabs?.sky);
+  const constellationsUnlocked = Boolean(state.unlocked?.constellations);
+  const constellationsEverDiscovered = Boolean(
+    state.meta?.discoveredTabs?.constellations
+  );
+
+  const starlightGainPreview = computeStarlightGain(state);
+  const nextStarlightFaith = computeNextStarlightFaith(state);
+  const starlightTotal = state.meta?.starlight || 0;
+  const starlightDiscovered = Boolean(state.meta?.discoveredTabs?.starlight);
+
+  const unlockedConstellationsCount = (state.constellations?.unlocked || []).length;
+  const pulseConstellationsTab = starlightTotal > 0 && unlockedConstellationsCount === 0;
+
   const showToast = (text) => {
     setToast(text);
     setTimeout(() => setToast(null), 1400);
+  };
+
+  // --- CONSTELLATIONS (Step 2B): spend Starlight to unlock permanent nodes ---
+  const constellationById = useMemo(() => {
+    const m = new Map();
+    (CONSTELLATIONS || []).forEach((n) => m.set(n.id, n));
+    return m;
+  }, []);
+
+  const unlockConstellation = (nodeId) => {
+    const node = constellationById.get(nodeId);
+    if (!node) return;
+
+    setState((s0) => {
+      const s = migrateState(s0);
+      const starlight = s?.meta?.starlight || 0;
+      const unlocked = s?.constellations?.unlocked || [];
+      if (!canUnlockConstellation(node, unlocked, starlight)) return s;
+
+      return migrateState({
+        ...s,
+        meta: {
+          ...(s.meta || {}),
+          starlight: Math.max(0, starlight - (node.cost || 0)),
+          discoveredTabs: {
+            ...((s.meta && s.meta.discoveredTabs) || {}),
+            constellations: true,
+          },
+        },
+        unlocked: {
+          ...(s.unlocked || {}),
+          constellations: true,
+        },
+        constellations: {
+          ...(s.constellations || {}),
+          unlocked: Array.from(new Set([...(unlocked || []), nodeId])),
+        },
+      });
+    });
+
+    showToast(`Unlocked: ${node.name}`);
   };
 
   useEffect(() => {
@@ -749,6 +818,11 @@ export default function App() {
             passiveEmbers: Math.max(
               0,
               (s.stats?.passiveEmbers || 0) + (c.emberRate || 0) * dt
+            ),
+            totalFaithEarned: Math.max(
+              0,
+              (s.stats?.totalFaithEarned || 0) +
+                Math.max(0, (c.devotionRate || 0) * dt)
             ),
           },
           stardust: s.stardust,
@@ -882,10 +956,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (state.ui.tab === "sky" && !skyTabUnlocked) {
+    if (state.ui.tab === "sky" && !skyTabUnlocked) setTab("village");
+    if (state.ui.tab === "constellations" && !constellationsUnlocked)
       setTab("village");
-    }
-  }, [state.ui.tab, skyTabUnlocked]);
+  }, [state.ui.tab, skyTabUnlocked, constellationsUnlocked]);
 
   const doSave = () => {
     saveState(state);
@@ -920,7 +994,90 @@ export default function App() {
     showToast("Progress reset.");
   };
 
-  const replayIntro = () => {
+  
+  // --- PRESTIGE: SHATTER THE SKY (Step 2A) ---
+  const performPrestige = (prevState, gain) => {
+    const prev = migrateState(prevState);
+    const fresh = migrateState(baseState());
+
+    // Preserve player settings and session state.
+    fresh.settings = { ...fresh.settings, ...(prev.settings || {}) };
+    fresh.ui = {
+      ...fresh.ui,
+      ...(prev.ui || {}),
+      screen: "game",
+      tab: "village",
+      tutorialActive: false,
+      tutorialHidden: true,
+      settingsOpen: false,
+      started: true,
+      introSeen: true,
+    };
+
+    // Persist meta progression (Starlight) and discovery.
+    const prevMeta = prev.meta || {};
+    const prevDisc = prevMeta.discoveredTabs || {};
+    fresh.meta = {
+      ...(fresh.meta || {}),
+      ...prevMeta,
+      cycles: (prevMeta.cycles || 0) + 1,
+      starlight: (prevMeta.starlight || 0) + gain,
+      totalPrestiges: (prevMeta.totalPrestiges || 0) + 1,
+      discoveredTabs: {
+        ...prevDisc,
+        village: true,
+        faith: true,
+        sky: Boolean(prevDisc.sky || prev.unlocked?.sky || prev.unlocked?.starlight),
+        starlight: true,
+      },
+    };
+
+    // Constellation purchases persist through prestige.
+    if (prev.constellations) fresh.constellations = prev.constellations;
+
+    // Reset run stats that drive objectives / prestige preview.
+    fresh.stats = {
+      ...(fresh.stats || {}),
+      passiveEmbers: 0,
+      totalFaithEarned: 0,
+    };
+
+    // Step 2B: apply start-of-cycle constellation bonuses.
+    const withStartBonuses = applyConstellationStartBonuses(fresh);
+    return migrateState(withStartBonuses);
+  };
+
+  const openPrestigeConfirm = () => {
+    if (starlightGainPreview <= 0) {
+      showToast("Gather more total Faith this cycle to earn Starlight.");
+      return;
+    }
+    setPrestigeConfirm(true);
+  };
+
+  const confirmPrestige = () => {
+    const gainNow = computeStarlightGain(state);
+    if (gainNow <= 0) {
+      setPrestigeConfirm(false);
+      showToast("Gather more total Faith this cycle to earn Starlight.");
+      return;
+    }
+
+    setPrestigeConfirm(false);
+    setState((s0) => {
+      const s = migrateState(s0);
+      const gain = computeStarlightGain(s);
+      if (gain <= 0) return s;
+      return performPrestige(s, gain);
+    });
+
+    setPrestigePulse((p) => p + 1);
+    showToast(`+${gainNow} Starlight`);
+  };
+
+  const cancelPrestige = () => setPrestigeConfirm(false);
+
+const replayIntro = () => {
     setState((s) => ({
       ...s,
       ui: { ...s.ui, introSeen: false, screen: "menu" },
@@ -1148,6 +1305,7 @@ export default function App() {
           computed={computed}
           onClickVillage={clickVillage}
           onClickSky={clickSky}
+          prestigePulse={prestigePulse}
         />
       </div>
 
@@ -1266,7 +1424,46 @@ export default function App() {
                 )}
               </div>
             </div>
+            
             <div
+              className={`statBox ${
+                starlightDiscovered || starlightTotal > 0 ? "" : "lockedBox"
+              }`}
+            >
+              <div className="rowBetween">
+                <div className="statLabel">
+                  <img
+                    className="ico"
+                    src="/assets/pixel/icon_starlight.png"
+                    alt=""
+                  />{" "}
+                  {starlightDiscovered || starlightTotal > 0
+                    ? "Starlight"
+                    : "Starlight (???)"}
+                </div>
+                <div className="statValueSmall">
+                  {starlightDiscovered || starlightTotal > 0
+                    ? fmt(starlightTotal)
+                    : "—"}
+                </div>
+              </div>
+              <div className="statSub" style={{ marginTop: 6 }}>
+                {starlightDiscovered || starlightTotal > 0 ? (
+                  <>
+                    <div>
+                      <b>Earned by:</b> Shatter the Sky (Prestige)
+                    </div>
+                    <div>
+                      <b>Used for:</b> Constellation upgrades
+                    </div>
+                  </>
+                ) : (
+                  <>{unlockHints.starlight}</>
+                )}
+              </div>
+            </div>
+
+<div
               className={`statBox ${
                 state.unlocked.starlight ? "" : "lockedBox"
               }`}
@@ -1278,7 +1475,7 @@ export default function App() {
                     src="/assets/pixel/icon_starlight.png"
                     alt=""
                   />{" "}
-                  {state.unlocked.starlight ? "Starlight" : "Starlight (???)"}
+                  {state.unlocked.starlight ? "Stardust" : "Stardust (???)"}
                 </div>
                 <div className="statValueSmall">
                   {state.unlocked.starlight ? fmt(state.stardust) : "—"}
@@ -1291,14 +1488,14 @@ export default function App() {
                       <b>Produces:</b> Clicking the sky
                     </div>
                     <div>
-                      <b>Spends:</b> Sky upgrades, Constellations
+                      <b>Spends:</b> Sky upgrades
                     </div>
                     <div>
-                      <b>Why:</b> Rebuild the night and awaken constellations.
+                      <b>Why:</b> Rebuild the night and reveal deeper paths.
                     </div>
                   </>
                 ) : (
-                  <>{unlockHints.starlight}</>
+                  <>{unlockHints.stardust}</>
                 )}
               </div>
             </div>
@@ -1346,7 +1543,23 @@ export default function App() {
                   setTab("sky");
                 }}
               >
-                {skyTabUnlocked ? "Sky" : "???"}
+                {skyTabUnlocked || skyEverDiscovered ? "Sky" : "???"}
+              </button>
+              <button
+                className={`tab ${tab === "constellations" ? "tabActive" : ""} ${
+                  !constellationsUnlocked ? "tabDisabled" : ""
+                } ${pulseConstellationsTab ? "tabPulse" : ""}`}
+                onClick={() => {
+                  if (!constellationsUnlocked) {
+                    showToast(unlockHints.constellations);
+                    return;
+                  }
+                  setTab("constellations");
+                }}
+              >
+                {constellationsUnlocked || constellationsEverDiscovered
+                  ? "Constellations"
+                  : "???"}
               </button>
               <button
                 className={`tab ${tab === "codex" ? "tabActive" : ""}`}
@@ -1355,6 +1568,76 @@ export default function App() {
                 Codex
               </button>
             </div>
+
+            {(state.unlocked?.faith || state.meta?.discoveredTabs?.faith) && (
+              <div
+                style={{
+                  marginTop: 12,
+                  marginBottom: 12,
+                  padding: 12,
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  borderRadius: 12,
+                  background: "rgba(0,0,0,0.22)",
+                }}
+              >
+                <div
+                  className="rowBetween"
+                  style={{ alignItems: "center", marginBottom: 8 }}
+                >
+                  <div style={{ fontWeight: 900, letterSpacing: 0.3 }}>
+                    Shatter the Sky
+                  </div>
+                  <Pill>Starlight: {fmt(starlightTotal)}</Pill>
+                </div>
+
+                <div className="smallText" style={{ opacity: 0.9 }}>
+                  Convert your <b>total Faith earned</b> this cycle into <b>Starlight</b>,
+                  reset the world, and begin a stronger cycle.
+                  {starlightGainPreview <= 0 && nextStarlightFaith ? (
+                    <>
+                      <span style={{ display: "block", marginTop: 6, opacity: 0.85 }}>
+                        Next Starlight at <b>{fmt(nextStarlightFaith)}</b> total Faith earned.
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+
+                {!prestigeConfirm ? (
+                  <div style={{ marginTop: 10 }}>
+                    <Button
+                      disabled={starlightGainPreview <= 0}
+                      onClick={openPrestigeConfirm}
+                    >
+                      Shatter the Sky{" "}
+                      {starlightGainPreview > 0
+                        ? `(+${starlightGainPreview} Starlight)`
+                        : "(Locked)"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                    <div className="smallText" style={{ opacity: 0.95, lineHeight: 1.35 }}>
+                      <div style={{ fontWeight: 900, marginBottom: 6 }}>
+                        You will gain +{starlightGainPreview} Starlight.
+                      </div>
+                      <div style={{ display: "grid", gap: 4 }}>
+                        <div>Resets: Embers, Faith, followers, and village buildings.</div>
+                        <div>Keeps: Starlight, Constellations, discovered tabs, and settings.</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <Button onClick={confirmPrestige}>
+                        Confirm Shatter (+{starlightGainPreview} Starlight)
+                      </Button>
+                      <Button variant="secondary" onClick={cancelPrestige}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {tab === "village" && (
               <div
                 className={`list ${
@@ -1384,7 +1667,7 @@ export default function App() {
                     currency === "embers"
                       ? "Divine Embers"
                       : currency === "stardust"
-                      ? "Starlight"
+                      ? "Stardust"
                       : "Faith";
                   return (
                     <div key={u.id} className="item">
@@ -1441,7 +1724,7 @@ export default function App() {
                       <div className="itemEffect">{u.effect(lvl)}</div>
                       <div className="rowBetween" style={{ marginTop: 10 }}>
                         <div className="smallText">
-                          Cost: <b>{fmt(cost)}</b> Starlight
+                          Cost: <b>{fmt(cost)}</b> Stardust
                         </div>
                         <Button
                           disabled={!can}
@@ -1454,6 +1737,12 @@ export default function App() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {tab === "constellations" && (
+              <div className="list">
+                <ConstellationTree state={state} onUnlock={unlockConstellation} />
               </div>
             )}
           </div>

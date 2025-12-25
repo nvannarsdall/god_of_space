@@ -270,6 +270,25 @@ button:disabled {
   opacity: 0.3;
 }
 
+.tabPulse {
+  animation: tabPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tabPulse {
+  0% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+  50% {
+    transform: translateY(-1px);
+    filter: brightness(1.35);
+  }
+  100% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+}
+
 /* Items List */
 .list {
   display: flex;

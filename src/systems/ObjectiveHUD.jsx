@@ -44,6 +44,18 @@ export default function ObjectiveHUD({ objective }) {
         <div style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.2 }}>
           {objective.text}
         </div>
+        {objective.subtext ? (
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: 12,
+              fontWeight: 600,
+              opacity: 0.85,
+            }}
+          >
+            {objective.subtext}
+          </div>
+        ) : null}
       </div>
     </div>
   );

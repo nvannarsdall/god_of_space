@@ -1,5 +1,62 @@
 import { clamp } from "./state";
-import { applyConstellationBonuses } from "../constellations/constellations";
+import { applyConstellationBonuses, getStarlightGainMultiplier } from "../constellations/constellations";
+// Prestige currency (Starlight) is earned on "Shatter the Sky" and persists across cycles.
+// We base gain on total Faith earned this run (not current Faith, which can be spent).
+function computeStarlightGain(s) {
+  const totalFaith =
+    typeof s?.stats?.totalFaithEarned === "number"
+      ? s.stats.totalFaithEarned
+      : typeof s?.faith === "number"
+      ? s.faith
+      : typeof s?.devotion === "number"
+      ? s.devotion
+      : 0;
+
+  // Step 2C pacing:
+  // - First Prestige should be reachable in ~15–25 minutes.
+  // - We gate Starlight until a meaningful amount of Faith has been earned.
+  // - Curve is tunable without touching save state.
+  if (totalFaith < 15) return 0;
+
+  const F0 = 30; // Faith needed for ~1 Starlight on first prestige
+  const power = 0.58;
+
+  const base = Math.floor(Math.pow(totalFaith / F0, power));
+  if (base <= 0) return 0;
+
+  // Constellations: data-driven Starlight gain multiplier (e.g., "Sky Scars").
+  const mult = getStarlightGainMultiplier(s);
+  return Math.max(1, Math.floor(base * mult));
+}
+
+// Step 2C UX: provide "next at" guidance for the Objective HUD & prestige panel.
+// Returns the next total Faith earned (this run) at which Starlight gain increases.
+function computeNextStarlightFaith(s) {
+  const totalFaith =
+    typeof s?.stats?.totalFaithEarned === "number"
+      ? s.stats.totalFaithEarned
+      : typeof s?.faith === "number"
+      ? s.faith
+      : typeof s?.devotion === "number"
+      ? s.devotion
+      : 0;
+
+  const cur = computeStarlightGain(s);
+  // If we haven't reached the first gate, show the first meaningful target.
+  if (totalFaith < 15) return 15;
+
+  // Brute force to the next +1 gain; this runs rarely (HUD/panel), so it's fine.
+  // Cap search to avoid infinite loops if formulas change.
+  const maxSeek = Math.max(1200, Math.ceil(totalFaith * 6));
+  for (let f = Math.ceil(totalFaith) + 1; f <= maxSeek; f++) {
+    const nextState = {
+      ...s,
+      stats: { ...(s?.stats || {}), totalFaithEarned: f },
+    };
+    if (computeStarlightGain(nextState) > cur) return f;
+  }
+  return null;
+}
 
 function compute(s) {
   const huts = s.village.huts || 0;
@@ -167,4 +224,4 @@ function compute(s) {
   return withBonuses;
 }
 
-export { compute };
+export { compute, computeStarlightGain, computeNextStarlightFaith };

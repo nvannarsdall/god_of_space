@@ -8,11 +8,9 @@ import { CONSTELLATIONS, canUnlock } from "./constellations";
  * - Spend constellation points to unlock nodes
  * - Dependencies enforce branching choices
  */
-export default function ConstellationTree({ state, onUnlock, onSetActive }) {
-  const points = state?.constellations?.points || 0;
+export default function ConstellationTree({ state, onUnlock }) {
+  const starlight = state?.meta?.starlight || 0;
   const unlocked = state?.constellations?.unlocked || [];
-
-  const active = state?.constellations?.active || null;
 
   const bgStars = useMemo(() => {
     // deterministic pseudo-random based on save seed-ish
@@ -63,50 +61,13 @@ export default function ConstellationTree({ state, onUnlock, onSetActive }) {
       title="Constellations"
       right={
         <Pill>
-          ✦ {Math.floor(points)} pt{Math.floor(points) === 1 ? "" : "s"}
+          ✦ {Math.floor(starlight)} Starlight
         </Pill>
       }
     >
       <div className="smallText" style={{ marginBottom: 10, opacity: 0.85 }}>
-        Spend Constellation Points to restore star-paths. Each node permanently
-        alters your world.
-      </div>
-
-      <div style={{ marginTop: 10 }} className="constellationModes">
-        <div className="smallText" style={{ opacity: 0.95, marginBottom: 6 }}>
-          Mode Star (choose one stance)
-        </div>
-        <div className="modeRow">
-          {["mode_hunter", "mode_shepherd", "mode_oracle"].map((mid) => {
-            const node = byId.get(mid);
-            const isUnlocked = unlockedSet.has(mid);
-            if (!node) return null;
-            return (
-              <button
-                key={mid}
-                className={`modeChip ${
-                  active === mid ? "modeChipActive" : ""
-                } ${!isUnlocked ? "modeChipLocked" : ""}`}
-                onClick={() => {
-                  if (!isUnlocked) return;
-                  onSetActive && onSetActive(mid);
-                }}
-                title={isUnlocked ? node.desc : "Unlock this Mode Star first."}
-              >
-                <span className="modeDot" />
-                {node.name}
-              </button>
-            );
-          })}
-          <button
-            className={`modeChip ${!active ? "modeChipActive" : ""}`}
-            onClick={() => onSetActive && onSetActive(null)}
-            title="Deactivate stance"
-          >
-            <span className="modeDot" />
-            Neutral
-          </button>
-        </div>
+        Spend <b>Starlight</b> to restore star-paths. Each node permanently
+        alters your future cycles.
       </div>
 
       <div
@@ -169,7 +130,7 @@ export default function ConstellationTree({ state, onUnlock, onSetActive }) {
         {/* Nodes */}
         {CONSTELLATIONS.map((n) => {
           const isUnlocked = unlockedSet.has(n.id);
-          const can = canUnlock(n, unlocked, points);
+          const can = canUnlock(n, unlocked, starlight);
           return (
             <div
               key={n.id}
@@ -225,7 +186,9 @@ export default function ConstellationTree({ state, onUnlock, onSetActive }) {
                     <div style={{ fontWeight: 800, letterSpacing: 0.3 }}>
                       {n.name}
                     </div>
-                    <Pill>{isUnlocked ? "Unlocked" : `${n.cost} pt`}</Pill>
+                    <Pill>
+                      {isUnlocked ? "Unlocked" : `${n.cost} Starlight`}
+                    </Pill>
                   </div>
                   <div
                     className="smallText"
