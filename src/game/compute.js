@@ -9,8 +9,12 @@ function compute(s) {
   const festivals = s.village.festivals || 0;
   const council = s.village.council || 0;
 
-  const faith = (typeof s.faith === "number" ? s.faith : (faith || 0));
-
+  const storedFaith =
+    typeof s.faith === "number"
+      ? s.faith
+      : typeof s.devotion === "number"
+      ? s.devotion
+      : 0;
   const starsong = s.sky.starsong || 0;
   const orbits = s.sky.orbits || 0;
   const telescope = s.sky.telescope || 0;
@@ -23,6 +27,15 @@ function compute(s) {
 
   // === DIVINE EMBERS (Phase B early loop) ===
   const emberRate = Math.max(0, huts * 0.05);
+
+  // Click gain (Phase C pacing): mild early boost that gently soft-diminishes after ~50 Embers.
+  // App.jsx clamps click gains to >= 1, so we keep this always >= 1.
+  const clickSoftCap = 50;
+  const clickDiminish =
+    (s.embers || 0) <= clickSoftCap
+      ? 1
+      : Math.max(0.35, clickSoftCap / Math.max(1, s.embers || 0));
+  const emberClickGain = 1 + 0.5 * clickDiminish;
 
   // === FOLLOWER GROWTH ===
   const growthAdd = huts >= 1 ? 0.07 + huts * 0.07 + farms * 0.11 : 0;
@@ -53,6 +66,25 @@ function compute(s) {
     ? s.followers * devotionPerFollower * surgeEV * globalMul
     : 0;
 
+  // === PHASE C: EMBERS → FAITH TRANSITION ===
+  // After Faith unlock, establish a meaningful income path:
+  // - Homes provide a tiny baseline Faith trickle
+  // - Farms convert a portion of Ember flow into Faith
+  // - Temples multiply all Faith gains (they are amplifiers, not the only source)
+  const faithUnlocked = !!s.unlocked?.faith;
+
+  const faithFromHomes = faithUnlocked ? huts * 0.002 : 0;
+
+  const baseConversion = 0.015; // 1.5% of Ember/sec
+  const farmBonus = farms * 0.01; // +1% per Farm
+  const conversionRate = faithUnlocked ? baseConversion + farmBonus : 0;
+  const faithFromEmbers = faithUnlocked ? emberRate * conversionRate : 0;
+
+  const templeFaithMult = faithUnlocked ? 1 + temples * 0.25 : 1;
+
+  devotionRate =
+    (devotionRate + faithFromHomes + faithFromEmbers) * templeFaithMult;
+
   // === REVERENCE (Devotion) DECAY — Phase 2 ===
   // Reverence is unstable unless supported by village structures.
   // This creates meaningful tension so the player must invest in stability.
@@ -62,7 +94,7 @@ function compute(s) {
         const veilNow = clamp(1 - starsong * 0.09, 0.08, 1);
         const veilPressure = 1 + 0.1 * veilNow;
         // Small baseline + scales gently with current stored devotion
-        const base = 0.06 + 0.0022 * (faith || 0);
+        const base = 0.06 + 0.0022 * (storedFaith || 0);
         return (base * veilPressure) / support;
       })()
     : 0;
@@ -108,7 +140,6 @@ function compute(s) {
 
   // Apply constellation bonuses (branching synergies)
   let withBonuses = {
-
     cap,
     followerRate,
     devotionRate,
@@ -126,7 +157,7 @@ function compute(s) {
     villageClickMult,
     portentActive,
     constellationPointRate,
-    };
+  };
 
   // Phase B: constellations are a later-layer system; don't apply bonuses until the sky layer is unlocked.
   if (s.unlocked?.sky || (s.constellations?.unlocked || []).length > 0) {

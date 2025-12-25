@@ -9,7 +9,10 @@ export function getObjective(state, computed) {
   const objectives = [
     {
       id: "first_spark",
-      text: `Restore the First Spark (0/1 Embers)`,
+      text: `Restore the First Spark (${Math.min(
+        1,
+        Math.floor(embers)
+      )}/1 Ember)`,
       done: embers >= 1,
     },
     {
@@ -24,7 +27,10 @@ export function getObjective(state, computed) {
     },
     {
       id: "hearths",
-      text: `Let the Hearths Glow (${Math.min(5, Math.floor(passive))}/5 Embers passively)`,
+      text: `Let the Hearths Glow (${Math.min(
+        5,
+        Math.floor(passive)
+      )}/5 Embers passively)`,
       done: passive >= 5,
     },
     {

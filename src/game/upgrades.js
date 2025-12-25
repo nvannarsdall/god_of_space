@@ -10,28 +10,28 @@ const VILLAGE_UPGRADES = [
     baseCost: 25,
     growth: 1.17,
     currency: "embers",
-    effect: (lvl) => `Divine Embers +${(0.05 * (lvl)).toFixed(2)}/s`,
+    effect: (lvl) => `Divine Embers +${(0.05 * lvl).toFixed(2)}/s`,
   },
   {
     id: "farms",
     name: "Farms",
-    desc: "Food surplus: faster growth and higher faith yield.",
+    desc: "Food surplus: converts Ember flow into Faith and accelerates growth.",
     baseCost: 85,
     growth: 1.19,
     currency: "faith",
     effect: (lvl) =>
-      `Growth +${(0.11 * (lvl + 1)).toFixed(2)}/s, Faith +${Math.round(
-        (lvl + 1) * 2
+      `Growth +${(0.11 * (lvl + 1)).toFixed(2)}/s, Ember→Faith +${Math.round(
+        1.5 + (lvl + 1) * 1
       )}%`,
   },
   {
     id: "temples",
     name: "Temples",
-    desc: "Ritual focus: faith deepens. Unlocks conversion.",
+    desc: "Ritual focus: multiplies all Faith gains.",
     baseCost: 260,
     growth: 1.22,
     currency: "faith",
-    effect: (lvl) => `Faith +${Math.round((lvl + 1) * 8)}%, unlock Convert`,
+    effect: (lvl) => `Faith gains x${(1 + (lvl + 1) * 0.25).toFixed(2)}`,
   },
   {
     id: "shrines",

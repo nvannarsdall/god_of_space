@@ -681,16 +681,21 @@ function WorldCanvas({ mode, state, computed, onClickVillage, onClickSky }) {
         const temples = st.village.temples || 0;
 
         const lit = st.devotion > 0;
-        // Homes / Village cluster (centered)
+        // Homes / Village cluster
+        // Phase C polish: keep homes grounded on the same baseline (no vertical offset)
+        // while avoiding the "perfectly centered" look.
         const maxHomes = Math.min(huts, 12);
         const totalHomes = 1 + maxHomes; // include the initial home
-        const spacing = W * 0.06;
-        const startX = W * 0.5 - (totalHomes - 1) * spacing * 0.5;
+        const spacing = Math.min(52, Math.max(32, W * 0.055));
         const baseY = groundY + 2;
+        // Anchor slightly left of center and let the village grow outward to the right.
+        const startX = W * 0.36;
 
         for (let i = 0; i < totalHomes; i++) {
-          const hx = startX + i * spacing;
-          const hy = baseY + (i % 2) * 3;
+          // small, deterministic horizontal jitter so the row feels organic
+          const jitter = ((i * 37) % 9) - 4; // -4..+4
+          const hx = startX + i * spacing + jitter;
+          const hy = baseY;
           // keep the initial placeholder home the same size as purchased homes
           drawHouse(hx, hy, 2.0, lit);
         }
